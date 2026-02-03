@@ -1,0 +1,8 @@
+node_modules/
+data.json
+.env
+.DS_Store
+*.log
+npm-debug.log*
+.vercel
+.railway

@@ -1,0 +1,22 @@
+{
+    "name": "zoho-crm-dashboard",
+    "version": "1.0.0",
+    "description": "Lightweight dashboard for tracking Working BBA campaign metrics from Zoho CRM",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node server.js"
+    },
+    "keywords": [
+        "zoho",
+        "crm",
+        "dashboard",
+        "webhook"
+    ],
+    "author": "Let's Enterprise",
+    "license": "MIT",
+    "dependencies": {
+        "express": "^4.18.2",
+        "cors": "^2.8.5"
+    }
+}
