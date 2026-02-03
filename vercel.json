@@ -1,20 +1,31 @@
 {
-    "rewrites": [
+    "version": 2,
+    "builds": [
         {
-            "source": "/api/:path*",
-            "destination": "/api/:path*"
+            "src": "api/index.js",
+            "use": "@vercel/node"
         },
         {
-            "source": "/webhook/:path*",
-            "destination": "/api/webhook/:path*"
+            "src": "public/**",
+            "use": "@vercel/static"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/api/(.*)",
+            "dest": "/api/index.js"
         },
         {
-            "source": "/",
-            "destination": "/public/index.html"
+            "src": "/webhook/(.*)",
+            "dest": "/api/index.js"
         },
         {
-            "source": "/:path*",
-            "destination": "/public/:path*"
+            "src": "/",
+            "dest": "/public/index.html"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/public/$1"
         }
     ]
 }
