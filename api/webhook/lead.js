@@ -1,4 +1,4 @@
-const dataStore = require('./data');
+const dataStore = require('../data');
 
 module.exports = (req, res) => {
     // Enable CORS

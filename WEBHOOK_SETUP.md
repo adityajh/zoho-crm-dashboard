@@ -1,165 +1,98 @@
 # Zoho CRM Webhook Setup Guide
 
-This guide will help you configure webhooks in Zoho CRM to send data to your Working BBA Campaign Dashboard.
+This guide has been customized for your live deployment.
 
-## Prerequisites
+## 🚀 Live Webhook URLs
 
-- Access to Zoho CRM with admin privileges
-- Your dashboard server must be publicly accessible (use ngrok for local testing or deploy to a hosting service)
+Use these exact URLs when configuring webhooks in Zoho CRM:
 
-## Webhook URLs
+- **New Lead Webhook:**
+  ```
+  https://zoho-crm-dashboard-nine.vercel.app/api/webhook/lead
+  ```
 
-Once your server is running and publicly accessible, you'll have two webhook endpoints:
+- **Application Form Webhook:**
+  ```
+  https://zoho-crm-dashboard-nine.vercel.app/api/webhook/application
+  ```
 
-- **New Lead Webhook**: `https://your-domain.com/webhook/lead`
-- **Application Form Webhook**: `https://your-domain.com/webhook/application`
+---
 
 ## Setting Up Webhooks in Zoho CRM
 
-### For New Leads
+### 1. Configure the "New Lead" Webhook
 
-1. **Navigate to Webhooks**
-   - Go to **Setup** (gear icon) → **Automation** → **Actions** → **Webhooks**
+1.  **Navigate to Webhooks**
+    - Go to **Setup** (gear icon) → **Automation** → **Actions** → **Webhooks**.
 
-2. **Create New Webhook**
-   - Click **Configure Webhook**
-   - Name: `Working BBA - New Lead`
-   - URL to Notify: `https://your-domain.com/webhook/lead`
-   - Method: **POST**
+2.  **Create Webhook**
+    - Click **Configure Webhook**.
+    - **Name:** `Working BBA - New Lead`
+    - **URL to Notify:** `https://zoho-crm-dashboard-nine.vercel.app/api/webhook/lead`
+    - **Method:** `POST`
+    - **Secured Webhook:** No (unless you implement auth later)
+    - **Event:** leave as default
 
-3. **Configure Request**
-   - Content Type: `application/json`
-   - You can send any data you want - the webhook will increment the counter regardless of payload
+3.  **Body/Payload**
+    - **Type**: `application/json` (Raw) or Form-Data.
+    - The dashboard simply counts the *event*, so the actual data content doesn't drastically matter for the counter, but sending standard Lead data is good practice.
 
-4. **Save the Webhook**
+4.  **Save** the Webhook.
 
-5. **Create Workflow Rule**
-   - Go to **Setup** → **Automation** → **Workflow Rules**
-   - Module: **Leads**
-   - Rule Name: `Trigger New Lead Counter`
-   - When: **A record is created**
-   - Condition: All Leads (or add specific criteria if needed)
-   - Instant Actions: Select the webhook you created above
+5.  **Create Workflow Rule**
+    - Go to **Setup** → **Automation** → **Workflow Rules**.
+    - **Module:** `Leads`
+    - **Rule Name:** `Trigger New Lead Counter`
+    - **When:** `On Record Creation`
+    - **Condition:** All Leads (or matching "Working BBA" program criteria)
+    - **Instant Actions:** Select the `Working BBA - New Lead` webhook you just created.
+    - **Save** and **Activate** the rule.
 
-### For Application Forms Filled
+### 2. Configure the "Application Filled" Webhook
 
-1. **Create Second Webhook**
-   - Name: `Working BBA - Application Filled`
-   - URL to Notify: `https://your-domain.com/webhook/application`
-   - Method: **POST**
-   - Content Type: `application/json`
+1.  **Create Second Webhook**
+    - Go back to **Webhooks** → **Configure Webhook**.
+    - **Name:** `Working BBA - Application Filled`
+    - **URL to Notify:** `https://zoho-crm-dashboard-nine.vercel.app/api/webhook/application`
+    - **Method:** `POST`
 
-2. **Create Workflow Rule**
-   - Module: **Leads** (or custom module if you track applications separately)
-   - Rule Name: `Trigger Application Counter`
-   - When: **A record is created or edited**
-   - Condition: Add criteria like "Application Status = Submitted" or similar field
-   - Instant Actions: Select the application webhook
+2.  **Create Workflow Rule**
+    - **Module:** `Leads` (or `Applications` if you have a custom module).
+    - **Rule Name:** `Trigger Application Counter`
+    - **When:** `On Record Edit` (or Creation, depending on your flow).
+    - **Condition:** e.g., `Application Status` is `Submitted` or `Form Filled`.
+    - **Instant Actions:** Select the `Working BBA - Application Filled` webhook.
+    - **Save** and **Activate**.
 
-## Testing Your Webhooks
+---
 
-### Using Zoho CRM Test Feature
+## Testing Your Integration
 
-1. In the webhook configuration, use the **Test** button
-2. Send a test request
-3. Check your dashboard - the counter should increment
-
-### Manual Testing with curl
+### 1. Manual Test (Command Line)
+You can verify the webhooks are working from your terminal:
 
 ```bash
-# Test lead webhook
-curl -X POST https://your-domain.com/webhook/lead \
-  -H "Content-Type: application/json" \
-  -d '{"test": "data"}'
+# Test Lead Counter
+curl -X POST https://zoho-crm-dashboard-nine.vercel.app/api/webhook/lead
 
-# Test application webhook
-curl -X POST https://your-domain.com/webhook/application \
-  -H "Content-Type: application/json" \
-  -d '{"test": "data"}'
+# Test Application Counter
+curl -X POST https://zoho-crm-dashboard-nine.vercel.app/api/webhook/application
 ```
 
-### Check Dashboard
-
-Open your dashboard at `https://your-domain.com` and verify:
-- Counters are displaying correctly
-- Numbers increment when webhooks are triggered
-- Last updated timestamp shows recent activity
-
-## Local Development with ngrok
-
-If you're testing locally before deployment:
-
-1. **Install ngrok**: https://ngrok.com/download
-
-2. **Start your server**:
-   ```bash
-   npm start
-   ```
-
-3. **Create ngrok tunnel**:
-   ```bash
-   ngrok http 3000
-   ```
-
-4. **Use ngrok URL** in Zoho webhooks:
-   - Example: `https://abc123.ngrok.io/webhook/lead`
-
-## Deployment Options
-
-### Option 1: Vercel (Recommended for Node.js)
-
-1. Install Vercel CLI: `npm i -g vercel`
-2. Run `vercel` in your project directory
-3. Follow the prompts
-4. Use the provided URL for webhooks
-
-### Option 2: Railway
-
-1. Sign up at https://railway.app
-2. Create new project from GitHub repo
-3. Railway will auto-detect Node.js and deploy
-4. Use the provided domain for webhooks
-
-### Option 3: Heroku
-
-1. Install Heroku CLI
-2. Create new app: `heroku create your-app-name`
-3. Deploy: `git push heroku main`
-4. Use `https://your-app-name.herokuapp.com` for webhooks
+### 2. Live Test
+1.  Open your dashboard: [https://zoho-crm-dashboard-nine.vercel.app/index.html](https://zoho-crm-dashboard-nine.vercel.app/index.html)
+2.  Go to Zoho CRM and create a dummy Lead.
+3.  Wait 5-10 seconds (the dashboard auto-refreshes).
+4.  You should see the "Total Leads" counter increment!
 
 ## Troubleshooting
 
-### Webhook Not Triggering
+-   **Counter didn't move?**
+    -   Refresh the dashboard page.
+    -   Check Zoho CRM **Audit Log** or Workflow history to ensure the webhook fired.
+    -   Check the dashboard **Health Link**: `https://zoho-crm-dashboard-nine.vercel.app/api/health` to ensure the server is responding.
 
-- Verify the webhook URL is correct and publicly accessible
-- Check Zoho CRM workflow rules are active
-- Review Zoho CRM execution logs in Setup → Automation → Workflow Rules
-
-### Counter Not Incrementing
-
-- Check server logs for incoming webhook requests
-- Verify the `data.json` file is being updated
-- Ensure file write permissions are correct
-
-### Dashboard Not Updating
-
-- Check browser console for JavaScript errors
-- Verify `/api/stats` endpoint is returning data
-- Ensure auto-refresh is working (check every 5 seconds)
-
-## Security Considerations
-
-Currently, the webhooks accept any POST request. For production use, consider:
-
-1. **API Key Authentication**: Add a secret key that Zoho must send
-2. **IP Whitelisting**: Only accept requests from Zoho CRM IP addresses
-3. **Request Signature**: Verify webhook signatures if Zoho provides them
-
-Contact your developer to implement these security measures.
-
-## Support
-
-For issues with:
-- **Zoho CRM**: Contact Zoho Support or check their documentation
-- **Dashboard**: Check server logs and browser console for errors
-- **Deployment**: Refer to your hosting provider's documentation
+-   **Note on Data Persistence**
+    -   Since this is running on Serverless Functions without a database, **data resets if the server "sleeps" (cold start) or redeploys**.
+    -   The dashboard is perfect for monitoring *live* campaign activity during the day.
+    -   For permanent long-term storage, we would need to connect a database (like MongoDB or Vercel KV) in the future.
