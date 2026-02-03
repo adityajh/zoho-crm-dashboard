@@ -5,7 +5,11 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'data.json');
+
+// Use /tmp directory for Vercel serverless (writable), fallback to local for development
+const DATA_FILE = process.env.VERCEL
+    ? '/tmp/data.json'
+    : path.join(__dirname, 'data.json');
 
 // Middleware
 app.use(cors());
@@ -20,14 +24,21 @@ function initializeData() {
             applications: 0,
             lastUpdated: new Date().toISOString()
         };
-        fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2));
-        console.log('✅ Data file initialized');
+        try {
+            fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2));
+            console.log('✅ Data file initialized');
+        } catch (error) {
+            console.error('Error initializing data file:', error);
+        }
     }
 }
 
 // Read data from file
 function readData() {
     try {
+        if (!fs.existsSync(DATA_FILE)) {
+            initializeData();
+        }
         const data = fs.readFileSync(DATA_FILE, 'utf8');
         return JSON.parse(data);
     } catch (error) {
@@ -105,7 +116,8 @@ app.get('/api/health', (req, res) => {
     res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        environment: process.env.VERCEL ? 'vercel' : 'local'
     });
 });
 
@@ -125,17 +137,23 @@ app.post('/api/reset', (req, res) => {
     }
 });
 
-// Initialize and start server
+// Initialize data on startup
 initializeData();
 
-app.listen(PORT, () => {
-    console.log('🚀 Zoho CRM Dashboard Server Started');
-    console.log(`📍 Server running on http://localhost:${PORT}`);
-    console.log(`📊 Dashboard: http://localhost:${PORT}`);
-    console.log(`🔗 Webhook URLs:`);
-    console.log(`   - New Lead: http://localhost:${PORT}/webhook/lead`);
-    console.log(`   - Application: http://localhost:${PORT}/webhook/application`);
-    console.log(`📈 Stats API: http://localhost:${PORT}/api/stats`);
-    console.log('');
-    console.log('Ready to receive webhooks from Zoho CRM! 🎯');
-});
+// Only start server if not in Vercel environment
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log('🚀 Zoho CRM Dashboard Server Started');
+        console.log(`📍 Server running on http://localhost:${PORT}`);
+        console.log(`📊 Dashboard: http://localhost:${PORT}`);
+        console.log(`🔗 Webhook URLs:`);
+        console.log(`   - New Lead: http://localhost:${PORT}/webhook/lead`);
+        console.log(`   - Application: http://localhost:${PORT}/webhook/application`);
+        console.log(`📈 Stats API: http://localhost:${PORT}/api/stats`);
+        console.log('');
+        console.log('Ready to receive webhooks from Zoho CRM! 🎯');
+    });
+}
+
+// Export for Vercel serverless
+module.exports = app;
