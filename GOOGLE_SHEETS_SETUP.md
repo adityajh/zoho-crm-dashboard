@@ -1,52 +1,14 @@
-# Google Sheets Setup Guide
+# Google Apps Script Setup Guide
 
-This guide will walk you through setting up Google Sheets as the persistent storage for your Zoho CRM Dashboard.
+This guide shows you how to set up Google Sheets persistence using Google Apps Script - **no Google Cloud setup required!**
 
-## Part 1: Google Cloud Setup
-
-### Step 1: Create a Google Cloud Project
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Click **Select a project** → **New Project**
-3. Name it: `Zoho CRM Dashboard`
-4. Click **Create**
-
-### Step 2: Enable Google Sheets API
-
-1. In your project, go to **APIs & Services** → **Library**
-2. Search for `Google Sheets API`
-3. Click on it and press **Enable**
-
-### Step 3: Create Service Account
-
-1. Go to **APIs & Services** → **Credentials**
-2. Click **Create Credentials** → **Service Account**
-3. Fill in:
-   - **Service account name**: `zoho-dashboard-bot`
-   - **Service account ID**: (auto-filled)
-4. Click **Create and Continue**
-5. Skip the optional steps, click **Done**
-
-### Step 4: Download JSON Key
-
-1. Click on the service account you just created
-2. Go to the **Keys** tab
-3. Click **Add Key** → **Create new key**
-4. Choose **JSON** format
-5. Click **Create** - a JSON file will download
-6. **Keep this file safe!** You'll need values from it.
-
----
-
-## Part 2: Google Sheet Setup
-
-### Step 1: Create Your Sheet
+## Part 1: Create Your Google Sheet
 
 1. Go to [Google Sheets](https://sheets.google.com)
 2. Create a **New Blank Spreadsheet**
 3. Name it: `Zoho CRM Dashboard Data`
 
-### Step 2: Set Up Structure
+### Set Up Structure
 
 In **Sheet1**, add these headers in Row 1:
 
@@ -60,52 +22,88 @@ In Row 2, initialize with zeros:
 |---|---|---|
 | 0 | 0 | |
 
-### Step 3: Share with Service Account
+---
 
-1. Click the **Share** button (top right)
-2. Paste the **service account email** from your JSON file
-   - It looks like: `zoho-dashboard-bot@project-name.iam.gserviceaccount.com`
-3. Give it **Editor** access
-4. **Uncheck** "Notify people"
-5. Click **Share**
+## Part 2: Create Apps Script
 
-### Step 4: Get Sheet ID
+1. In your Google Sheet, click **Extensions** → **Apps Script**
+2. Delete any existing code
+3. Paste the following code:
 
-From your sheet URL:
+```javascript
+function doGet(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Sheet1');
+  const data = sheet.getRange('A2:C2').getValues()[0];
+  
+  return ContentService.createTextOutput(JSON.stringify({
+    leads: parseInt(data[0]) || 0,
+    applications: parseInt(data[1]) || 0,
+    lastUpdated: data[2] || new Date().toISOString()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Sheet1');
+    const params = JSON.parse(e.postData.contents);
+    
+    const leads = parseInt(params.leads) || 0;
+    const applications = parseInt(params.applications) || 0;
+    const lastUpdated = new Date().toISOString();
+    
+    sheet.getRange('A2:C2').setValues([[leads, applications, lastUpdated]]);
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      leads: leads,
+      applications: applications,
+      lastUpdated: lastUpdated
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
 ```
-https://docs.google.com/spreadsheets/d/SHEET_ID_HERE/edit
-```
-Copy the `SHEET_ID_HERE` part.
+
+4. Click **Save** (💾 icon)
+5. Name the project: `Zoho Dashboard API`
 
 ---
 
-## Part 3: Vercel Configuration
+## Part 3: Deploy as Web App
 
-### Add Environment Variables
+1. Click **Deploy** → **New deployment**
+2. Click the gear icon ⚙️ next to "Select type"
+3. Choose **Web app**
+4. Configure:
+   - **Description**: `Zoho Dashboard Data API`
+   - **Execute as**: `Me`
+   - **Who has access**: `Anyone`
+5. Click **Deploy**
+6. **Copy the Web App URL** - it looks like:
+   ```
+   https://script.google.com/macros/s/XXXXX/exec
+   ```
+7. Click **Done**
+
+---
+
+## Part 4: Configure Vercel
 
 1. Go to your [Vercel Dashboard](https://vercel.com/dashboard)
 2. Select your `zoho-crm-dashboard` project
 3. Go to **Settings** → **Environment Variables**
-4. Add these 3 variables:
+4. Add **ONE** variable:
 
-#### Variable 1: GOOGLE_SERVICE_ACCOUNT_EMAIL
-- **Name**: `GOOGLE_SERVICE_ACCOUNT_EMAIL`
-- **Value**: The `client_email` from your JSON file
+**GOOGLE_APPS_SCRIPT_URL**
+- **Name**: `GOOGLE_APPS_SCRIPT_URL`
+- **Value**: The Web App URL you copied (e.g., `https://script.google.com/macros/s/XXXXX/exec`)
 - **Environment**: Production, Preview, Development
 
-#### Variable 2: GOOGLE_PRIVATE_KEY
-- **Name**: `GOOGLE_PRIVATE_KEY`
-- **Value**: The `private_key` from your JSON file (entire value including `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----`)
-- **Environment**: Production, Preview, Development
-
-#### Variable 3: GOOGLE_SHEET_ID
-- **Name**: `GOOGLE_SHEET_ID`
-- **Value**: The Sheet ID you copied earlier
-- **Environment**: Production, Preview, Development
-
-### Redeploy
-
-After adding the environment variables, Vercel will automatically redeploy your app with the new configuration.
+5. Save and wait for automatic redeployment
 
 ---
 
@@ -115,6 +113,10 @@ Once deployed:
 
 1. Trigger a webhook (via Zoho or curl)
 2. Check your Google Sheet - you should see the numbers update!
-3. Refresh your dashboard - it will now show the persisted data
+3. Your data is now permanently stored
 
-**Your data is now safe!** Even if Vercel restarts the server, your counts will persist in the Google Sheet.
+**Benefits of this approach:**
+- ✅ No Google Cloud setup
+- ✅ No service accounts or JSON keys
+- ✅ Simple one-URL configuration
+- ✅ Easy to debug (you can see Apps Script logs)
