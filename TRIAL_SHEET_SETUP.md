@@ -3,10 +3,11 @@
 Please update your Trial Sheet to match the new robust structure. This ensures your data is sorted with the newest records on top, features a dedicated Total Counters tab, and keeps 30 days continuous.
 
 ## Step 1: Set Up the Tabs
-In your `Zoho CRM Dashboard Data v1.2 Trial` Sheet, ensure you have these **three tabs** exactly named:
+In your `Zoho CRM Dashboard Data v1.2 Trial` Sheet, ensure you have these **four tabs** exactly named:
 1. `TotalCounters`
 2. `DailyTotals`
 3. `LeadScores`
+4. `Applications`
 
 ### `TotalCounters` Tab Headers (Row 1):
 | A | B | C |
@@ -28,6 +29,13 @@ In your `Zoho CRM Dashboard Data v1.2 Trial` Sheet, ensure you have these **thre
 | Date | Name | ID | City | Score1 | Score2 | Score3 | Score4 |
 
 *(Used for Average Lead Score. Newest leads will be at the top!)*
+
+### `Applications` Tab Headers (Row 1):
+| A | B | C | D | E | F | G | H | I | J | K | L | M |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Date | Name | Email | Mobile | City | School | Stream | 10th % | 12th Status | Source | Referrer | Extracurriculars | Char Count |
+
+*(Used for Application tracking. Appends new apps to the top natively!)*
 
 ## Step 2: Deploy the New Apps Script
 1. In the Trial Sheet, click **Extensions > Apps Script**.
@@ -124,7 +132,14 @@ function doPost(e) {
         if (data.length > 1) {
             for (let i = 1; i < data.length; i++) {
                 if (data[i][0]) {
-                    const rowDateStr = new Date(data[i][0]).toISOString().split('T')[0];
+                    // Properly format the cell date ignoring UTC shift
+                    let rowDateStr = "";
+                    if (data[i][0] instanceof Date) {
+                        rowDateStr = Utilities.formatDate(data[i][0], ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
+                    } else {
+                        rowDateStr = String(data[i][0]).split('T')[0];
+                    }
+                    
                     if (rowDateStr === today) {
                         // Found the row! Update it in place (i+1 because Apps Script ranges are 1-indexed)
                         let currentLeads = parseInt(data[i][1]) || 0;
@@ -144,6 +159,33 @@ function doPost(e) {
             dailySheet.getRange('A2:C2').setValues([[today, isLead ? 1 : 0, isLead ? 0 : 1]]);
             // Trim old days (keep 60 rows for buffer)
             if(dailySheet.getMaxRows() > 61) dailySheet.deleteRow(62);
+        }
+    };
+
+    const insertApplicationRecord = (p, timeStr) => {
+        const appSheet = ss.getSheetByName('Applications');
+        if (!appSheet) return;
+        
+        appSheet.insertRowBefore(2);
+        appSheet.getRange('A2:M2').setValues([[
+            timeStr,
+            p.appName || '',
+            p.email || '',
+            p.mobile || '',
+            p.city || '',
+            p.school || '',
+            p.stream || '',
+            p.tenth || '',
+            p.twelfth || '',
+            p.source || '',
+            p.referrer || '',
+            p.extracurriculars || '',
+            p.charCount || 0
+        ]]);
+        
+        // Keep to 100 rows to safely cache last 30-60 apps
+        if(appSheet.getLastRow() > 101) {
+            appSheet.deleteRow(102);
         }
     };
 
@@ -178,13 +220,15 @@ function doPost(e) {
     if (params.type === 'new_application') {
         const counts = updateGlobalCounter(false);
         updateDailyCounter(false);
+        insertApplicationRecord(params, timestamp);
         return ContentService.createTextOutput(JSON.stringify({ success: true, count: counts.apps })).setMimeType(ContentService.MimeType.JSON);
     }
     
     // BACKFILL APPLICATION COMMAND
     if (params.type === 'backfill_application') {
         // This acts exactly like new_application but targets a specific historical date
-        updateDailyCounter(false);
+        if (params.overrideDate) updateDailyCounter(false); // Only tick counter if date mapping is requested during mass backfill
+        insertApplicationRecord(params, params.overrideTimestamp || timestamp);
         return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
     }
 

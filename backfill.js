@@ -1,116 +1,160 @@
 const fs = require('fs');
 const csv = require('csv-parser');
-const fetch = require('node-fetch');
+require('dotenv').config();
 
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNldqib0fL2UXLirWgGVaZjAzjBI3theW3hGti2a0pdnB2_b5dNAKhZZoEGFWbxfD6/exec';
+// The Google Apps Script URL (Webhook)
+const SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL_V1_2 || 'https://script.google.com/macros/s/AKfycbwNldqib0fL2UXLirWgGVaZjAzjBI3theW3hGti2a0pdnB2_b5dNAKhZZoEGFWbxfD6/exec';
 
-const results = [];
-let dailyCounts = {};
-let latestLeads = []; // We will store top 10
+const leadsFile = 'Leads_2026_02_20.csv';
+const appsFile = 'Step1LetsEnterpriseAdmissionsUGMED20251_Report.csv';
 
-fs.createReadStream('Leads_2026_02_20.csv')
-    .pipe(csv())
-    .on('data', (data) => {
-        // 1. Process Daily Counts
-        const createdTimeStr = data['Created Time'];
-        if (createdTimeStr) {
-            // e.g., '2025-08-01 07:16:09' -> '2025-08-01'
-            const datePart = createdTimeStr.split(' ')[0];
+// Storage mapping
+const dailyCounts = {};
+let totalLeadsCount = 0;
+let totalAppsCount = 0;
+const latestLeadsScores = [];
 
-            if (!dailyCounts[datePart]) {
-                dailyCounts[datePart] = { leads: 0, apps: 0 };
-            }
+const delay = ms => new Promise(res => setTimeout(res, ms));
 
-            dailyCounts[datePart].leads += 1;
+// Helper to normalize dates to local YYYY-MM-DD reliably
+function formatDateKey(dateInput) {
+    // "20-Feb-2026 22:08:06" -> "20-Feb-2026 12:00:00" to prevent UTC drift
+    const dateStr = dateInput.split(' ')[0];
+    const parsedDate = new Date(dateStr + " 12:00:00");
+    if (!isNaN(parsedDate.getTime())) {
+        return parsedDate.toISOString().split('T')[0];
+    }
+    return null;
+}
 
-            // Count applications (e.g. Lead Status)
-            // Adjust the condition based on how you mark Applications
-            const status = data['Lead Status'] || '';
-            if (status.toLowerCase().includes('application') || status.toLowerCase().includes('submitted')) {
-                dailyCounts[datePart].apps += 1;
-            }
+// 1. Parse Leads
+function parseLeads() {
+    return new Promise((resolve) => {
+        fs.createReadStream(leadsFile)
+            .pipe(csv())
+            .on('data', (data) => {
+                const createdTimeStr = data['Created Time'];
+                if (createdTimeStr) {
+                    const dateKey = formatDateKey(createdTimeStr);
+                    if (!dateKey) return;
 
-            // 2. Process Score Data
-            latestLeads.push({
-                date: new Date(createdTimeStr),
-                name: data['Lead Name'] || (data['First Name'] ? `${data['First Name']} ${data['Last Name']}` : data['Last Name']) || 'Unknown',
-                id: data['Record Id'] || 'N/A',
-                city: data['City'] || 'Unknown',
-                score1: parseFloat(data['Lead_Source_Score']) || 0,
-                score2: parseFloat(data['Lead_Age_Score']) || 0,
-                score3: parseFloat(data['WA_Qualification_Score']) || 0,
-                score4: parseFloat(data['Website_Analytics_Score']) || 0
+                    if (!dailyCounts[dateKey]) {
+                        dailyCounts[dateKey] = { leads: 0, apps: 0 };
+                    }
+
+                    dailyCounts[dateKey].leads += 1;
+                    totalLeadsCount += 1;
+
+                    // Extract logic for Score Backfilling
+                    latestLeadsScores.push({
+                        date: new Date(createdTimeStr),
+                        name: data['Lead Name'] || (data['First Name'] ? `${data['First Name']} ${data['Last Name']}` : data['Last Name']) || 'Unknown',
+                        id: data['Record Id'] || 'N/A',
+                        city: data['City'] || 'Unknown',
+                        score1: parseFloat(data['Lead_Source_Score']) || 0,
+                        score2: parseFloat(data['Lead_Age_Score']) || 0,
+                        score3: parseFloat(data['WA_Qualification_Score']) || 0,
+                        score4: parseFloat(data['Website_Analytics_Score']) || 0
+                    });
+                }
+            })
+            .on('end', () => {
+                console.log(`Leads CSV parsed. Total Leads: ${totalLeadsCount}`);
+                resolve();
             });
-        }
-    })
-    .on('end', async () => {
-        console.log('CSV file successfully processed. Total leads:', latestLeads.length);
+    });
+}
 
-        // Generate an array of exactly the last 30 days starting with TODAY (descending)
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // normalize time
+// 2. Parse Apps
+function parseApps() {
+    return new Promise((resolve) => {
+        fs.createReadStream(appsFile)
+            .pipe(csv())
+            .on('data', (data) => {
+                const addedTimeStr = data['Added Time'];
+                if (addedTimeStr) {
+                    const dateKey = formatDateKey(addedTimeStr);
+                    if (!dateKey) return;
 
-        const filledDailyCounts = [];
-        for (let i = 0; i < 30; i++) {
-            const targetDate = new Date(today);
-            targetDate.setDate(today.getDate() - i);
-            const dateStr = targetDate.toISOString().split('T')[0];
-
-            filledDailyCounts.push({
-                date: dateStr,
-                leads: dailyCounts[dateStr] ? dailyCounts[dateStr].leads : 0,
-                apps: dailyCounts[dateStr] ? dailyCounts[dateStr].apps : 0
+                    if (!dailyCounts[dateKey]) {
+                        dailyCounts[dateKey] = { leads: 0, apps: 0 };
+                    }
+                    dailyCounts[dateKey].apps += 1;
+                    totalAppsCount += 1;
+                }
+            })
+            .on('end', () => {
+                console.log(`Apps CSV parsed. Total Applications: ${totalAppsCount}`);
+                resolve();
             });
-        }
+    });
+}
 
-        console.log(`Pushing the continuous block of exactly 30 days (Newest first)...`);
+// 3. Execute Unified Pushing
+async function runUnifiedBackfill() {
+    await parseLeads();
+    await parseApps();
 
-        // Sort latest leads descending (newest first) and keep top 30
-        latestLeads.sort((a, b) => b.date - a.date);
-        const top30 = latestLeads.slice(0, 30);
+    console.log('--- CSV Parsing Complete ---');
 
-        // We need to send them slowly so Google Apps Script doesn't ratelimit us
-        const delay = ms => new Promise(res => setTimeout(res, ms));
+    // Generate continuous 30 days array starting strictly chronologically (Oldest first)
+    // Actually, because our Apps Script `backfill_daily` just appends rows for backfills,
+    // sending them descending (new to old) creates a top-down sheet. Let's send them descending.
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
+    const continuous30Days = [];
+    for (let i = 0; i < 30; i++) {
+        const targetDate = new Date(today);
+        targetDate.setDate(today.getDate() - i);
+        const dateKey = targetDate.toISOString().split('T')[0];
+
+        continuous30Days.push({
+            date: dateKey,
+            leads: dailyCounts[dateKey] ? dailyCounts[dateKey].leads : 0,
+            apps: dailyCounts[dateKey] ? dailyCounts[dateKey].apps : 0
+        });
+    }
+
+    // Capture Top 30 descending for LeadScores
+    latestLeadsScores.sort((a, b) => b.date - a.date);
+    const top30Scores = latestLeadsScores.slice(0, 30);
+
+    try {
+        console.log(`Setting global leads to ${totalLeadsCount} and apps to ${totalAppsCount}...`);
+        await fetch(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'backfill_global', leads: totalLeadsCount, applications: totalAppsCount })
+        });
+        await delay(1000);
+    } catch (e) { console.error('Error with global counter', e); }
+
+    console.log('Pushing 30 continuous days (Newest first)...');
+    for (const dataPoint of continuous30Days) {
         try {
-            // First, trigger global counter
-            console.log(`Setting global leads to ${latestLeads.length} and apps to 0...`);
+            console.log(`Pushing: ${dataPoint.date} - L:${dataPoint.leads} A:${dataPoint.apps}`);
             await fetch(SCRIPT_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'backfill_global', leads: latestLeads.length, applications: 0 })
-            });
-            await delay(1000);
-        } catch (e) {
-            console.error('Error with global counter', e);
-        }
-
-        // Push daily counts to Google Sheet via the Apps Script webhook
-        for (const dataPoint of filledDailyCounts) {
-            try {
-                const payload = {
+                body: JSON.stringify({
                     type: 'backfill_daily',
                     leads: dataPoint.leads,
                     applications: dataPoint.apps,
                     date: dataPoint.date
-                };
+                })
+            });
+            await delay(1000);
+        } catch (e) { console.error('Error pushing data', e); }
+    }
 
-                console.log(`Pushing: ${dataPoint.date} - L:${dataPoint.leads} A:${dataPoint.apps}`);
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                await delay(1000);
-            } catch (e) {
-                console.error('Error pushing data', e);
-            }
-        }
-
-        console.log(`Pushing Top 30 newest leads...`);
-        for (const lead of top30) {
-            try {
-                const payload = {
+    console.log('Pushing Top 30 Lead Scores...');
+    for (const lead of top30Scores) {
+        try {
+            await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                     type: 'backfill_score',
                     date: lead.date.toISOString(),
                     leadName: lead.name,
@@ -120,17 +164,13 @@ fs.createReadStream('Leads_2026_02_20.csv')
                     score2: lead.score2,
                     score3: lead.score3,
                     score4: lead.score4
-                };
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                await delay(1000);
-            } catch (e) {
-                console.error('Error pushing score', e);
-            }
-        }
+                })
+            });
+            await delay(1000);
+        } catch (e) { console.error('Error pushing score', e); }
+    }
 
-        console.log('Backfill complete!');
-    });
+    console.log('✅ Backfill complete!');
+}
+
+runUnifiedBackfill();

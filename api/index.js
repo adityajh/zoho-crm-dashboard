@@ -41,11 +41,45 @@ app.post('/api/webhook/lead', async (req, res) => {
 app.post('/api/webhook/application', async (req, res) => {
     console.log('📝 Application webhook received');
     try {
-        // Trigger 'new_application' event on Apps Script
-        const updatedData = await googleSheets.updateCounts('new_application', 0, 0, 0, 0);
+        const body = req.body || {};
+        console.log('Mapping Application Payload onto New Tab:', body.id);
 
-        console.log(`✅ Application count updated: ${updatedData.applications}`);
-        res.json({ success: true, count: updatedData.applications });
+        let charCount = 0;
+        // Search keys logically or via substring matching to parse essay lengths from webhook body 
+        Object.keys(body).forEach(key => {
+            const kl = key.toLowerCase();
+            if (
+                kl.includes('enjoy the most') ||
+                kl.includes('contributed to') ||
+                kl.includes('innovative path') ||
+                kl.includes('5 years from now') ||
+                kl.includes('choosing ug-med')
+            ) {
+                charCount += String(body[key] || '').length;
+            }
+        });
+
+        // Check for Zoho's standard param keys and map to our 13-column tab
+        const params = {
+            appName: body.Name || body.Full_Name || (body.First_Name ? `${body.First_Name} ${body.Last_Name}` : body.Last_Name) || 'Unknown',
+            email: body.Email || body.Email_ID || '',
+            mobile: body.Mobile_Number || body.Mobile || body.Phone || '',
+            city: body.Your_city_of_residence || body.City || '',
+            school: body.School_Name || body.School || '',
+            stream: body.Stream || '',
+            tenth: body['10th_Grade_%'] || body['10th_Grade'] || '',
+            twelfth: body['12th_Grade_Status'] || body['12th_Grade'] || '',
+            source: body['How_did_you_come_to_know_about_us?'] || body.Lead_Source || '',
+            referrer: body['Referral_Name_(if_any)'] || body.Referral_Name || body.Referrer || '',
+            extracurriculars: body['Extra-Curricular_Activities'] || body.Extra_Curricular_Activities || '',
+            charCount: charCount
+        };
+
+        // Trigger 'new_application' event on Apps Script and pass mapped Application Data
+        const updatedData = await googleSheets.updateApplicationCounts(params);
+
+        console.log(`✅ Application count updated internally: ${updatedData.apps}`);
+        res.json({ success: true, count: updatedData.apps });
     } catch (error) {
         console.error('Error updating application count:', error);
         res.status(500).json({ success: false, error: 'Failed to update application count' });

@@ -33,8 +33,12 @@ async function updateLeadScore(leadName, leadId, city, score1, score2, score3, s
     return triggerEvent('new_lead', { leadName, leadId, city, score1, score2, score3, score4 });
 }
 
+async function updateApplicationCounts(params) {
+    return triggerEvent('new_application', params);
+}
+
 async function updateCounts(actionType) {
-    // Left for backwards compatibility, maybe passing actionType = 'new_application'
+    // Left for backwards compatibility if needed
     return triggerEvent(actionType);
 }
 
@@ -44,7 +48,8 @@ async function resetCounts() {
 
 module.exports = {
     getCounts,
-    updateCounts,
     updateLeadScore,
+    updateCounts,
+    updateApplicationCounts,
     resetCounts
 };
