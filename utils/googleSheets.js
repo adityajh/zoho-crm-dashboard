@@ -13,38 +13,38 @@ async function getCounts() {
     }
 }
 
-async function updateCounts(leads, applications) {
+async function triggerEvent(eventType, params = {}) {
     try {
+        const payload = { type: eventType, ...params };
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'counter_update', leads, applications }),
+            body: JSON.stringify(payload),
         });
         const data = await response.json();
-        return data;
+        return data; // returns the new global counts
     } catch (error) {
-        console.error('Error writing counts to Google Sheets:', error);
+        console.error('Error triggering event in Google Sheets:', error);
         throw error;
     }
 }
 
 async function updateLeadScore(score1, score2, score3, score4) {
-    try {
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'new_lead_score', score1, score2, score3, score4 }),
-        });
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error('Error writing score to Google Sheets:', error);
-        throw error;
-    }
+    return triggerEvent('new_lead', { score1, score2, score3, score4 });
+}
+
+async function updateCounts(actionType) {
+    // Left for backwards compatibility, maybe passing actionType = 'new_application'
+    return triggerEvent(actionType);
+}
+
+async function resetCounts() {
+    return triggerEvent('reset');
 }
 
 module.exports = {
     getCounts,
     updateCounts,
-    updateLeadScore
+    updateLeadScore,
+    resetCounts
 };

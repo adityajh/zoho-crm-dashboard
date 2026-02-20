@@ -21,14 +21,11 @@ app.post('/api/webhook/lead', async (req, res) => {
         const score3 = parseFloat(body.WA_Qual_Score) || parseFloat(body['WA_Qual._Scoring_Rule']) || 0;
         const score4 = parseFloat(body.Website_Analytics_Rule) || 0;
 
-        // 1. Update overall daily counter
-        const currentData = await googleSheets.getCounts();
-        const updatedData = await googleSheets.updateCounts(currentData.leads + 1, currentData.applications);
+        // Trigger 'new_lead' event on Apps Script and pass scores
+        // We merged counts & score into one call
+        const updatedData = await googleSheets.updateLeadScore(score1, score2, score3, score4);
 
-        // 2. Record individual Lead Score
-        await googleSheets.updateLeadScore(score1, score2, score3, score4);
-
-        console.log(`✅ Lead count updated: ${updatedData.leads} | Scores recorded`);
+        console.log(`✅ Lead count updated: ${updatedData.leads || 'Processed'} | Scores recorded`);
         res.json({ success: true, count: updatedData.leads });
     } catch (error) {
         console.error('Error updating lead count or score:', error);
@@ -39,8 +36,9 @@ app.post('/api/webhook/lead', async (req, res) => {
 app.post('/api/webhook/application', async (req, res) => {
     console.log('📝 Application webhook received');
     try {
-        const currentData = await googleSheets.getCounts();
-        const updatedData = await googleSheets.updateCounts(currentData.leads, currentData.applications + 1);
+        // Trigger 'new_application' event on Apps Script
+        const updatedData = await googleSheets.updateCounts('new_application', 0, 0, 0, 0);
+
         console.log(`✅ Application count updated: ${updatedData.applications}`);
         res.json({ success: true, count: updatedData.applications });
     } catch (error) {
@@ -74,7 +72,7 @@ app.get('/api/health', (req, res) => {
 
 app.post('/api/reset', async (req, res) => {
     try {
-        const updatedData = await googleSheets.updateCounts(0, 0);
+        const updatedData = await googleSheets.resetCounts();
         res.json({ success: true, message: 'Counters reset', data: updatedData });
     } catch (error) {
         console.error('Error resetting counters:', error);
