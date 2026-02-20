@@ -93,8 +93,16 @@ function doPost(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const params = JSON.parse(e.postData.contents);
-    const today = new Date().toISOString().split('T')[0];
-    const timestamp = new Date().toISOString();
+    const today = params.overrideDate || new Date().toISOString().split('T')[0];
+    
+    // Create the formatted timestamp 'dd/mm/yy - hh:mm' for LeadScores
+    const d = new Date();
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yy = String(d.getFullYear()).slice(-2);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const timestamp = params.overrideTimestamp || `${dd}/${mm}/${yy} - ${hh}:${min}`;
     
     // --- HELPERS ---
     const updateGlobalCounter = (isLead) => {
@@ -112,19 +120,25 @@ function doPost(e) {
         const data = dailySheet.getDataRange().getValues();
         let updated = false;
         
-        // If row 2 is today, update it
+        // Search through the rows to see if today's date exists anywhere
         if (data.length > 1) {
-            const row2DateStr = new Date(data[1][0]).toISOString().split('T')[0];
-            if (row2DateStr === today) {
-                let currentLeads = parseInt(data[1][1]) || 0;
-                let currentApps = parseInt(data[1][2]) || 0;
-                if(isLead) dailySheet.getRange(2, 2).setValue(currentLeads + 1);
-                else dailySheet.getRange(2, 3).setValue(currentApps + 1);
-                updated = true;
+            for (let i = 1; i < data.length; i++) {
+                if (data[i][0]) {
+                    const rowDateStr = new Date(data[i][0]).toISOString().split('T')[0];
+                    if (rowDateStr === today) {
+                        // Found the row! Update it in place (i+1 because Apps Script ranges are 1-indexed)
+                        let currentLeads = parseInt(data[i][1]) || 0;
+                        let currentApps = parseInt(data[i][2]) || 0;
+                        if(isLead) dailySheet.getRange(i + 1, 2).setValue(currentLeads + 1);
+                        else dailySheet.getRange(i + 1, 3).setValue(currentApps + 1);
+                        updated = true;
+                        break;
+                    }
+                }
             }
         }
         
-        // If row 2 is NOT today, insert a new row 2 pushing everything down
+        // If the date doesn't exist at all, THEN insert a new row 2
         if (!updated) {
             dailySheet.insertRowBefore(2);
             dailySheet.getRange('A2:C2').setValues([[today, isLead ? 1 : 0, isLead ? 0 : 1]]);
@@ -165,6 +179,13 @@ function doPost(e) {
         const counts = updateGlobalCounter(false);
         updateDailyCounter(false);
         return ContentService.createTextOutput(JSON.stringify({ success: true, count: counts.apps })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // BACKFILL APPLICATION COMMAND
+    if (params.type === 'backfill_application') {
+        // This acts exactly like new_application but targets a specific historical date
+        updateDailyCounter(false);
+        return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
     }
 
     // 3. BACKFILL COMMANDS (For our node script)
