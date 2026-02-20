@@ -19,6 +19,10 @@ let previousApplications = 0;
 // Format timestamp
 function formatTimestamp(isoString) {
     const date = new Date(isoString);
+    // Guard against non-ISO values (e.g. old "dd/mm/yy - hh:mm" format in the sheet)
+    if (isNaN(date.getTime())) {
+        return isoString || 'Recently';
+    }
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
