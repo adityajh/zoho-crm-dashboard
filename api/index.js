@@ -15,6 +15,11 @@ app.post('/api/webhook/lead', async (req, res) => {
     try {
         const body = req.body || {};
 
+        // Extract additional lead info
+        const leadName = body.Lead_Name || body.Full_Name || (body.First_Name ? `${body.First_Name} ${body.Last_Name}` : body.Last_Name) || 'Unknown Lead';
+        const leadId = body.id || body.Record_Id || body.Lead_Id || 'N/A';
+        const city = body.City || 'Unknown';
+
         // Extract the 4 scores (default to 0 if not present)
         const score1 = parseFloat(body.Lead_Source_Rule) || 0;
         const score2 = parseFloat(body.Lead_Age_Scoring_Rule) || 0;
@@ -23,7 +28,7 @@ app.post('/api/webhook/lead', async (req, res) => {
 
         // Trigger 'new_lead' event on Apps Script and pass scores
         // We merged counts & score into one call
-        const updatedData = await googleSheets.updateLeadScore(score1, score2, score3, score4);
+        const updatedData = await googleSheets.updateLeadScore(leadName, leadId, city, score1, score2, score3, score4);
 
         console.log(`✅ Lead count updated: ${updatedData.leads || 'Processed'} | Scores recorded`);
         res.json({ success: true, count: updatedData.leads });

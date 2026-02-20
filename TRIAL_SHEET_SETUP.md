@@ -23,9 +23,9 @@ In your `Zoho CRM Dashboard Data v1.2 Trial` Sheet, ensure you have these **thre
 *(Used for 30-day graphs. Data will be pushed down daily!)*
 
 ### `LeadScores` Tab Headers (Row 1):
-| A | B | C | D | E |
-|---|---|---|---|---|
-| Date | Score1 | Score2 | Score3 | Score4 |
+| A | B | C | D | E | F | G | H |
+|---|---|---|---|---|---|---|---|
+| Date | Name | ID | City | Score1 | Score2 | Score3 | Score4 |
 
 *(Used for Average Lead Score. Newest leads will be at the top!)*
 
@@ -69,10 +69,13 @@ function doGet(e) {
      for(let i=1; i<endRow; i++) {
          latest10Scores.push({
              date: scoreData[i][0],
-             score1: parseFloat(scoreData[i][1]) || 0,
-             score2: parseFloat(scoreData[i][2]) || 0,
-             score3: parseFloat(scoreData[i][3]) || 0,
-             score4: parseFloat(scoreData[i][4]) || 0
+             name: scoreData[i][1] || 'Unknown',
+             id: scoreData[i][2] || 'N/A',
+             city: scoreData[i][3] || 'Unknown',
+             score1: parseFloat(scoreData[i][4]) || 0,
+             score2: parseFloat(scoreData[i][5]) || 0,
+             score3: parseFloat(scoreData[i][6]) || 0,
+             score4: parseFloat(scoreData[i][7]) || 0
          });
      }
   }
@@ -139,16 +142,19 @@ function doPost(e) {
         
         const scoreSheet = ss.getSheetByName('LeadScores');
         scoreSheet.insertRowBefore(2); // Push down logic
-        scoreSheet.getRange('A2:E2').setValues([[
+        scoreSheet.getRange('A2:H2').setValues([[
             timestamp,
+            params.leadName || 'Unknown',
+            params.leadId || 'N/A',
+            params.city || 'Unknown',
             params.score1 || 0,
             params.score2 || 0,
             params.score3 || 0,
             params.score4 || 0
         ]]);
-        // Keep to 10
-        if(scoreSheet.getLastRow() > 11) {
-            scoreSheet.deleteRow(12);
+        // Keep to 100 rows to allow safely keeping "last 30 days" worth while capping it
+        if(scoreSheet.getLastRow() > 101) {
+            scoreSheet.deleteRow(102);
         }
         
         return ContentService.createTextOutput(JSON.stringify({ success: true, count: counts.leads })).setMimeType(ContentService.MimeType.JSON);
@@ -177,7 +183,7 @@ function doPost(e) {
     if (params.type === 'backfill_score') {
          const scoreSheet = ss.getSheetByName('LeadScores');
          // We'll append for backfill to keep control over order. JS script will handle it.
-         scoreSheet.appendRow([params.date, params.score1, params.score2, params.score3, params.score4]);
+         scoreSheet.appendRow([params.date, params.leadName || '', params.leadId || '', params.city || '', params.score1, params.score2, params.score3, params.score4]);
     }
     
     if (params.type === 'reset') {

@@ -33,6 +33,9 @@ fs.createReadStream('Leads_2026_02_20.csv')
             // 2. Process Score Data
             latestLeads.push({
                 date: new Date(createdTimeStr),
+                name: data['Lead Name'] || (data['First Name'] ? `${data['First Name']} ${data['Last Name']}` : data['Last Name']) || 'Unknown',
+                id: data['Record Id'] || 'N/A',
+                city: data['City'] || 'Unknown',
                 score1: parseFloat(data['Lead_Source_Score']) || 0,
                 score2: parseFloat(data['Lead_Age_Score']) || 0,
                 score3: parseFloat(data['WA_Qualification_Score']) || 0,
@@ -62,9 +65,9 @@ fs.createReadStream('Leads_2026_02_20.csv')
 
         console.log(`Pushing the continuous block of exactly 30 days (Newest first)...`);
 
-        // Sort latest leads descending (newest first) and keep top 10
+        // Sort latest leads descending (newest first) and keep top 30
         latestLeads.sort((a, b) => b.date - a.date);
-        const top10 = latestLeads.slice(0, 10);
+        const top30 = latestLeads.slice(0, 30);
 
         // We need to send them slowly so Google Apps Script doesn't ratelimit us
         const delay = ms => new Promise(res => setTimeout(res, ms));
@@ -104,12 +107,15 @@ fs.createReadStream('Leads_2026_02_20.csv')
             }
         }
 
-        console.log(`Pushing Top 10 newest leads...`);
-        for (const lead of top10) {
+        console.log(`Pushing Top 30 newest leads...`);
+        for (const lead of top30) {
             try {
                 const payload = {
                     type: 'backfill_score',
                     date: lead.date.toISOString(),
+                    leadName: lead.name,
+                    leadId: lead.id,
+                    city: lead.city,
                     score1: lead.score1,
                     score2: lead.score2,
                     score3: lead.score3,

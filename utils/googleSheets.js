@@ -29,8 +29,8 @@ async function triggerEvent(eventType, params = {}) {
     }
 }
 
-async function updateLeadScore(score1, score2, score3, score4) {
-    return triggerEvent('new_lead', { score1, score2, score3, score4 });
+async function updateLeadScore(leadName, leadId, city, score1, score2, score3, score4) {
+    return triggerEvent('new_lead', { leadName, leadId, city, score1, score2, score3, score4 });
 }
 
 async function updateCounts(actionType) {
