@@ -5,7 +5,12 @@ const REFRESH_INTERVAL = 5000; // 5 seconds
 // DOM elements
 const leadsCountElement = document.getElementById('leads-count');
 const applicationsCountElement = document.getElementById('applications-count');
+const averageScoreElement = document.getElementById('average-score');
 const lastUpdatedElement = document.getElementById('last-updated');
+
+// Chart Instances
+let leadsChartInstance = null;
+let appsChartInstance = null;
 
 // Store previous values for animation
 let previousLeads = 0;
@@ -84,6 +89,108 @@ function updateDashboard(data) {
     if (data.lastUpdated) {
         lastUpdatedElement.textContent = formatTimestamp(data.lastUpdated);
     }
+
+    // --- Chart.js Updates ---
+    if (data.dailyHistory && data.dailyHistory.length > 0) {
+        updateCharts(data.dailyHistory);
+    }
+
+    // --- Quality Score Update ---
+    if (data.recentScores && data.recentScores.length > 0) {
+        let totalScore = 0;
+        let count = 0;
+        data.recentScores.forEach(lead => {
+            totalScore += (lead.score1 + lead.score2 + lead.score3 + lead.score4);
+            count++;
+        });
+        const average = count > 0 ? (totalScore / count).toFixed(1) : 0;
+        // Assuming max possible score is 100 for percentage display
+        averageScoreElement.textContent = `${average}%`;
+    }
+}
+
+// Global Chart configuration for dark theme
+Chart.defaults.color = '#a0a0c0';
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.scale.grid.color = 'rgba(255, 255, 255, 0.05)';
+
+function initCharts() {
+    const ctxLeads = document.getElementById('leadsChart').getContext('2d');
+    leadsChartInstance = new Chart(ctxLeads, {
+        type: 'line',
+        data: {
+            labels: [], datasets: [{
+                label: 'Daily Leads',
+                data: [],
+                borderColor: '#f5576c',
+                backgroundColor: 'rgba(245, 87, 108, 0.1)',
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true,
+                pointRadius: 0,
+                pointHoverRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { display: false },
+                y: { display: false, beginAtZero: true }
+            }
+        }
+    });
+
+    const ctxApps = document.getElementById('appsChart').getContext('2d');
+    appsChartInstance = new Chart(ctxApps, {
+        type: 'line',
+        data: {
+            labels: [], datasets: [{
+                label: 'Daily Applications',
+                data: [],
+                borderColor: '#00f2fe',
+                backgroundColor: 'rgba(0, 242, 254, 0.1)',
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true,
+                pointRadius: 0,
+                pointHoverRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { display: false },
+                y: { display: false, beginAtZero: true }
+            }
+        }
+    });
+}
+
+function updateCharts(dailyHistory) {
+    if (!leadsChartInstance || !appsChartInstance) return;
+
+    // We want the last 30 days (which are now top 30 because of our push down logic)
+    // We reverse them so the oldest is on the left and newest is on the right of the chart
+    const last30 = dailyHistory.slice(0, 30).reverse();
+    const labels = last30.map(day => {
+        const d = new Date(day.date);
+        return `${d.getMonth() + 1}/${d.getDate()}`;
+    });
+
+    const leadsData = last30.map(day => day.leads);
+    const appsData = last30.map(day => day.applications);
+
+    leadsChartInstance.data.labels = labels;
+    leadsChartInstance.data.datasets[0].data = leadsData;
+    leadsChartInstance.update();
+
+    appsChartInstance.data.labels = labels;
+    appsChartInstance.data.datasets[0].data = appsData;
+    appsChartInstance.update();
 }
 
 // Fetch stats from API
@@ -108,6 +215,9 @@ async function fetchStats() {
 // Initialize dashboard
 function init() {
     console.log('🚀 Dashboard initialized');
+
+    // Initialize Chart.js canvases empty
+    initCharts();
 
     // Initial fetch
     fetchStats();

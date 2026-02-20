@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +9,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
     <div class="container">
         <header class="header">
@@ -30,7 +33,9 @@
                 <div class="stat-card leads-card">
                     <div class="card-header">
                         <div class="icon-wrapper leads-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
                                 <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
                                 <circle cx="9" cy="7" r="4"></circle>
                                 <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
@@ -41,12 +46,18 @@
                     </div>
                     <div class="stat-value" id="leads-count">0</div>
                     <div class="stat-label">Prospective Students</div>
+                    <div class="chart-container"
+                        style="position: relative; height:100px; width:100%; margin-top: 15px;">
+                        <canvas id="leadsChart"></canvas>
+                    </div>
                 </div>
 
                 <div class="stat-card applications-card">
                     <div class="card-header">
                         <div class="icon-wrapper applications-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                 <polyline points="14 2 14 8 20 8"></polyline>
                                 <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -58,19 +69,42 @@
                     </div>
                     <div class="stat-value" id="applications-count">0</div>
                     <div class="stat-label">Completed Forms</div>
+                    <div class="chart-container"
+                        style="position: relative; height:100px; width:100%; margin-top: 15px;">
+                        <canvas id="appsChart"></canvas>
+                    </div>
                 </div>
+            </div>
+
+            <!-- New Lead Score Component -->
+            <div class="stat-card quality-card" style="margin-top: 24px; text-align: center;">
+                <div class="card-header" style="justify-content: center; margin-bottom: 10px;">
+                    <div class="icon-wrapper leads-icon" style="background: rgba(46, 204, 113, 0.2); color: #2ecc71;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon
+                                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+                            </polygon>
+                        </svg>
+                    </div>
+                    <h2>Average Lead Quality Score</h2>
+                </div>
+                <div class="stat-value" id="average-score" style="color: #2ecc71;">0%</div>
+                <div class="stat-label">Based on the last 10 leads analyzed</div>
             </div>
 
             <div class="info-card">
                 <div class="info-header">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"></circle>
                         <line x1="12" y1="16" x2="12" y2="12"></line>
                         <line x1="12" y1="8" x2="12.01" y2="8"></line>
                     </svg>
                     <span>Dashboard Information</span>
                 </div>
-                <p>This dashboard tracks real-time metrics for the <strong>Working BBA</strong> admission campaign. Data is automatically updated via Zoho CRM webhooks.</p>
+                <p>This dashboard tracks real-time metrics for the <strong>Working BBA</strong> admission campaign. Data
+                    is automatically updated via Zoho CRM webhooks.</p>
                 <div class="last-updated">
                     Last updated: <span id="last-updated">Never</span>
                 </div>
@@ -84,4 +118,5 @@
 
     <script src="script.js"></script>
 </body>
+
 </html>
