@@ -173,9 +173,10 @@ function initCharts() {
 function updateCharts(dailyHistory) {
     if (!leadsChartInstance || !appsChartInstance) return;
 
-    // We want the last 30 days (which are now top 30 because of our push down logic)
-    // We reverse them so the oldest is on the left and newest is on the right of the chart
-    const last30 = dailyHistory.slice(0, 30).reverse();
+    // We want the last 30 days. We need them chronologically sorted so left is oldest and right is newest.
+    let last30 = dailyHistory.slice(0, 30);
+    last30.sort((a, b) => new Date(a.date) - new Date(b.date));
+
     const labels = last30.map(day => {
         const d = new Date(day.date);
         return `${d.getMonth() + 1}/${d.getDate()}`;
