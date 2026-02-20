@@ -103,14 +103,17 @@ function doPost(e) {
     const params = JSON.parse(e.postData.contents);
     const today = params.overrideDate || new Date().toISOString().split('T')[0];
     
-    // Create the formatted timestamp 'dd/mm/yy - hh:mm' for LeadScores
+    // ISO timestamp for TotalCounters (needed by frontend to calculate "X minutes ago")
+    const isoTimestamp = new Date().toISOString();
+    
+    // Formatted timestamp 'dd/mm/yy - hh:mm' for LeadScores and Applications display
     const d = new Date();
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const yy = String(d.getFullYear()).slice(-2);
     const hh = String(d.getHours()).padStart(2, '0');
     const min = String(d.getMinutes()).padStart(2, '0');
-    const timestamp = params.overrideTimestamp || `${dd}/${mm}/${yy} - ${hh}:${min}`;
+    const displayTimestamp = params.overrideTimestamp || `${dd}/${mm}/${yy} - ${hh}:${min}`;
     
     // --- HELPERS ---
     const updateGlobalCounter = (isLead) => {
@@ -119,7 +122,7 @@ function doPost(e) {
         let apps = parseInt(counterSheet.getRange('B2').getValue()) || 0;
         if (isLead) leads += 1;
         else apps += 1;
-        counterSheet.getRange('A2:C2').setValues([[leads, apps, timestamp]]);
+        counterSheet.getRange('A2:C2').setValues([[leads, apps, isoTimestamp]]);
         return { leads, apps };
     };
 
@@ -199,7 +202,7 @@ function doPost(e) {
         const scoreSheet = ss.getSheetByName('LeadScores');
         scoreSheet.insertRowBefore(2); // Push down logic
         scoreSheet.getRange('A2:H2').setValues([[
-            timestamp,
+            displayTimestamp,
             params.leadName || 'Unknown',
             params.leadId || 'N/A',
             params.city || 'Unknown',
@@ -220,7 +223,7 @@ function doPost(e) {
     if (params.type === 'new_application') {
         const counts = updateGlobalCounter(false);
         updateDailyCounter(false);
-        insertApplicationRecord(params, timestamp);
+        insertApplicationRecord(params, displayTimestamp);
         return ContentService.createTextOutput(JSON.stringify({ success: true, count: counts.apps })).setMimeType(ContentService.MimeType.JSON);
     }
     
