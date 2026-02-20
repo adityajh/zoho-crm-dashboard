@@ -41,14 +41,14 @@ fs.createReadStream('Leads_2026_02_20.csv')
         }
     })
     .on('end', async () => {
-        console.log('CSV file successfully processed.');
+        console.log('CSV file successfully processed. Total leads:', latestLeads.length);
 
-        // Generate an array of exactly the last 30 days (including today)
+        // Generate an array of exactly the last 30 days starting with TODAY (descending)
         const today = new Date();
         today.setHours(0, 0, 0, 0); // normalize time
 
         const filledDailyCounts = [];
-        for (let i = 29; i >= 0; i--) {
+        for (let i = 0; i < 30; i++) {
             const targetDate = new Date(today);
             targetDate.setDate(today.getDate() - i);
             const dateStr = targetDate.toISOString().split('T')[0];
@@ -60,18 +60,33 @@ fs.createReadStream('Leads_2026_02_20.csv')
             });
         }
 
-        console.log(`Pushing the continuous block of exactly 30 days...`);
+        console.log(`Pushing the continuous block of exactly 30 days (Newest first)...`);
 
-        // Let's sort latest leads chronologically and keep the last 10
-        latestLeads.sort((a, b) => a.date - b.date);
-        const top10 = latestLeads.slice(-10);
+        // Sort latest leads descending (newest first) and keep top 10
+        latestLeads.sort((a, b) => b.date - a.date);
+        const top10 = latestLeads.slice(0, 10);
+
+        // We need to send them slowly so Google Apps Script doesn't ratelimit us
+        const delay = ms => new Promise(res => setTimeout(res, ms));
+
+        try {
+            // First, trigger global counter
+            console.log(`Setting global leads to ${latestLeads.length} and apps to 0...`);
+            await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'backfill_global', leads: latestLeads.length, applications: 0 })
+            });
+            await delay(1000);
+        } catch (e) {
+            console.error('Error with global counter', e);
+        }
 
         // Push daily counts to Google Sheet via the Apps Script webhook
         for (const dataPoint of filledDailyCounts) {
             try {
-                // Format to what your webhook expects
                 const payload = {
-                    type: 'backfill_counter',
+                    type: 'backfill_daily',
                     leads: dataPoint.leads,
                     applications: dataPoint.apps,
                     date: dataPoint.date
@@ -83,13 +98,13 @@ fs.createReadStream('Leads_2026_02_20.csv')
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                await new Promise(r => setTimeout(r, 1000));
+                await delay(1000);
             } catch (e) {
                 console.error('Error pushing data', e);
             }
         }
 
-        console.log(`Pushing Top 10 leads...`);
+        console.log(`Pushing Top 10 newest leads...`);
         for (const lead of top10) {
             try {
                 const payload = {
@@ -105,9 +120,11 @@ fs.createReadStream('Leads_2026_02_20.csv')
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                await new Promise(r => setTimeout(r, 1000));
+                await delay(1000);
             } catch (e) {
                 console.error('Error pushing score', e);
             }
         }
+
+        console.log('Backfill complete!');
     });

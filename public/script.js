@@ -173,8 +173,9 @@ function initCharts() {
 function updateCharts(dailyHistory) {
     if (!leadsChartInstance || !appsChartInstance) return;
 
-    // We want the last 30 days
-    const last30 = dailyHistory.slice(-30);
+    // We want the last 30 days (which are now top 30 because of our push down logic)
+    // We reverse them so the oldest is on the left and newest is on the right of the chart
+    const last30 = dailyHistory.slice(0, 30).reverse();
     const labels = last30.map(day => {
         const d = new Date(day.date);
         return `${d.getMonth() + 1}/${d.getDate()}`;

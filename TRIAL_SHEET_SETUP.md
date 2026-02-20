@@ -1,48 +1,57 @@
 # Trial Sheet Setup for V1.2
 
-Please follow these steps to create our isolated testing environment. Once you give me the Web App URL, I can start configuring the backend!
+Please update your Trial Sheet to match the new robust structure. This ensures your data is sorted with the newest records on top, features a dedicated Total Counters tab, and keeps 30 days continuous.
 
-## Step 1: Create the Trial Sheet
-1. Open your current live `Zoho CRM Dashboard Data` Google Sheet.
-2. Click **File > Make a copy**.
-3. Name the new sheet: `Zoho CRM Dashboard Data v1.2 Trial`.
+## Step 1: Set Up the Tabs
+In your `Zoho CRM Dashboard Data v1.2 Trial` Sheet, ensure you have these **three tabs** exactly named:
+1. `TotalCounters`
+2. `DailyTotals`
+3. `LeadScores`
 
-## Step 2: Set Up the Tabs
-In your new Trial Sheet, ensure you have these **two tabs** exactly named:
-1. `DailyTotals` (Rename `Sheet1` to this, or create it if missing)
-2. `LeadScores`
+### `TotalCounters` Tab Headers (Row 1):
+| A | B | C |
+|---|---|---|
+| Leads | Applications | LastUpdated |
+
+*(In Row 2, initialize with: `0`, `0`, and leave C blank)*
 
 ### `DailyTotals` Tab Headers (Row 1):
 | A | B | C |
 |---|---|---|
 | Date | Leads | Applications |
 
-*(You can leave row 2 empty, the script will add data)*
+*(Used for 30-day graphs. Data will be pushed down daily!)*
 
 ### `LeadScores` Tab Headers (Row 1):
 | A | B | C | D | E |
 |---|---|---|---|---|
 | Date | Score1 | Score2 | Score3 | Score4 |
 
-*(Again, leave row 2 empty)*
+*(Used for Average Lead Score. Newest leads will be at the top!)*
 
-## Step 3: Deploy the New Apps Script
+## Step 2: Deploy the New Apps Script
 1. In the Trial Sheet, click **Extensions > Apps Script**.
-2. Delete the old code, and paste this entire new code:
+2. Delete the old code, and paste this massive new upgrade:
 
 ```javascript
-// ====== v1.2 Trial Apps Script ======
-
+// ====== v1.2.1 Trial Apps Script ======
 function doGet(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 1. Get Daily Totals (Last 30 days ideally, but we'll send all for now and filter in Node)
+  // 1. Get Total Counters
+  const counterSheet = ss.getSheetByName('TotalCounters');
+  const counterData = counterSheet.getRange('A2:C2').getValues()[0] || [0, 0, ''];
+  const totalLeads = parseInt(counterData[0]) || 0;
+  const totalApps = parseInt(counterData[1]) || 0;
+  const lastUpdated = counterData[2] || new Date().toISOString();
+
+  // 2. Get Daily Totals (First 30 rows = Last 30 days since newest is on top)
   const dailySheet = ss.getSheetByName('DailyTotals');
   const dailyData = dailySheet.getDataRange().getValues();
   let dailyTotals = [];
   if (dailyData.length > 1) {
-    // Skip header row
-    for(let i=1; i<dailyData.length; i++) {
+    const endRow = Math.min(dailyData.length, 31); // Header + 30 days
+    for(let i=1; i<endRow; i++) {
         dailyTotals.push({
             date: dailyData[i][0],
             leads: parseInt(dailyData[i][1]) || 0,
@@ -51,14 +60,14 @@ function doGet(e) {
     }
   }
 
-  // 2. Get Last 10 Lead Scores
+  // 3. Get Last 10 Lead Scores (First 10 rows under header)
   const scoreSheet = ss.getSheetByName('LeadScores');
   const scoreData = scoreSheet.getDataRange().getValues();
-  let last10Scores = [];
+  let latest10Scores = [];
   if (scoreData.length > 1) {
-     const startRow = Math.max(1, scoreData.length - 10);
-     for(let i=startRow; i<scoreData.length; i++) {
-         last10Scores.push({
+     const endRow = Math.min(scoreData.length, 11); // Header + 10 leads
+     for(let i=1; i<endRow; i++) {
+         latest10Scores.push({
              date: scoreData[i][0],
              score1: parseFloat(scoreData[i][1]) || 0,
              score2: parseFloat(scoreData[i][2]) || 0,
@@ -68,20 +77,12 @@ function doGet(e) {
      }
   }
 
-  // Get current legacy totals for existing UI (fallback)
-  let currentLeads = 0;
-  let currentApps = 0;
-  if (dailyData.length > 1) {
-      currentLeads = parseInt(dailyData[dailyData.length-1][1]) || 0;
-      currentApps = parseInt(dailyData[dailyData.length-1][2]) || 0;
-  }
-
   return ContentService.createTextOutput(JSON.stringify({
-    leads: currentLeads,
-    applications: currentApps,
-    lastUpdated: new Date().toISOString(),
+    leads: totalLeads,
+    applications: totalApps,
+    lastUpdated: lastUpdated,
     dailyHistory: dailyTotals,
-    recentScores: last10Scores
+    recentScores: latest10Scores
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -89,68 +90,110 @@ function doPost(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const params = JSON.parse(e.postData.contents);
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
+    const timestamp = new Date().toISOString();
     
-    // ACTION 1: Update Daily Totals
-    if (params.type === 'counter_update') {
+    // --- HELPERS ---
+    const updateGlobalCounter = (isLead) => {
+        const counterSheet = ss.getSheetByName('TotalCounters');
+        let leads = parseInt(counterSheet.getRange('A2').getValue()) || 0;
+        let apps = parseInt(counterSheet.getRange('B2').getValue()) || 0;
+        if (isLead) leads += 1;
+        else apps += 1;
+        counterSheet.getRange('A2:C2').setValues([[leads, apps, timestamp]]);
+        return { leads, apps };
+    };
+
+    const updateDailyCounter = (isLead) => {
         const dailySheet = ss.getSheetByName('DailyTotals');
         const data = dailySheet.getDataRange().getValues();
         let updated = false;
         
-        // Check if today exists
+        // If row 2 is today, update it
         if (data.length > 1) {
-            const lastRowIndex = data.length - 1;
-            const lastRowDateStr = new Date(data[lastRowIndex][0]).toISOString().split('T')[0];
-            
-            if (lastRowDateStr === today) {
-                // Update today's row
-                dailySheet.getRange(lastRowIndex + 1, 2).setValue(params.leads);
-                dailySheet.getRange(lastRowIndex + 1, 3).setValue(params.applications);
+            const row2DateStr = new Date(data[1][0]).toISOString().split('T')[0];
+            if (row2DateStr === today) {
+                let currentLeads = parseInt(data[1][1]) || 0;
+                let currentApps = parseInt(data[1][2]) || 0;
+                if(isLead) dailySheet.getRange(2, 2).setValue(currentLeads + 1);
+                else dailySheet.getRange(2, 3).setValue(currentApps + 1);
                 updated = true;
             }
         }
         
-        // If today doesn't exist, append new row
+        // If row 2 is NOT today, insert a new row 2 pushing everything down
         if (!updated) {
-            dailySheet.appendRow([today, params.leads, params.applications]);
+            dailySheet.insertRowBefore(2);
+            dailySheet.getRange('A2:C2').setValues([[today, isLead ? 1 : 0, isLead ? 0 : 1]]);
+            // Trim old days (keep 60 rows for buffer)
+            if(dailySheet.getMaxRows() > 61) dailySheet.deleteRow(62);
         }
-    }
+    };
+
+    // --- ACTIONS ---
     
-    // ACTION 2: Append New Lead Score
-    if (params.type === 'new_lead_score') {
+    // 1. LIVE LEAD WEBHOOK
+    if (params.type === 'new_lead') {
+        const counts = updateGlobalCounter(true);
+        updateDailyCounter(true);
+        
         const scoreSheet = ss.getSheetByName('LeadScores');
-        scoreSheet.appendRow([
-            new Date().toISOString(),
+        scoreSheet.insertRowBefore(2); // Push down logic
+        scoreSheet.getRange('A2:E2').setValues([[
+            timestamp,
             params.score1 || 0,
             params.score2 || 0,
             params.score3 || 0,
             params.score4 || 0
-        ]);
-        
-        // Optional: Keep sheet size manageable by deleting oldest if > 100 rows
-        if(scoreSheet.getLastRow() > 100) {
-            scoreSheet.deleteRow(2);
+        ]]);
+        // Keep to 10
+        if(scoreSheet.getLastRow() > 11) {
+            scoreSheet.deleteRow(12);
         }
+        
+        return ContentService.createTextOutput(JSON.stringify({ success: true, count: counts.leads })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 2. LIVE APPLICATION WEBHOOK
+    if (params.type === 'new_application') {
+        const counts = updateGlobalCounter(false);
+        updateDailyCounter(false);
+        return ContentService.createTextOutput(JSON.stringify({ success: true, count: counts.apps })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true,
-      message: "Data recorded successfully"
-    })).setMimeType(ContentService.MimeType.JSON);
+    // 3. BACKFILL COMMANDS (For our node script)
+    if (params.type === 'backfill_global') {
+        const counterSheet = ss.getSheetByName('TotalCounters');
+        counterSheet.getRange('A2:C2').setValues([[params.leads, params.applications, timestamp]]);
+    }
+    
+    if (params.type === 'backfill_daily') {
+        const dailySheet = ss.getSheetByName('DailyTotals');
+        dailySheet.appendRow([params.date, params.leads, params.applications]); 
+        // Note: For backfills via script, we want to append them chronologically ascending, 
+        // to manually control order, or we can insert top. We'll handle this in the JS script properly.
+    }
+    
+    if (params.type === 'backfill_score') {
+         const scoreSheet = ss.getSheetByName('LeadScores');
+         // We'll append for backfill to keep control over order. JS script will handle it.
+         scoreSheet.appendRow([params.date, params.score1, params.score2, params.score3, params.score4]);
+    }
+    
+    if (params.type === 'reset') {
+         const counterSheet = ss.getSheetByName('TotalCounters');
+         counterSheet.getRange('A2:C2').setValues([[0, 0, timestamp]]);
+         return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
     
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      error: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 ```
 
-3. Click **Deploy > New deployment**.
-4. Select type **Web app**, set access to **Anyone**. 
-5. Click **Deploy** and **copy the new Web App URL**.
-
----
-
-**Please paste the new Web App URL here, along with the 4 Zoho variable names for the scores!**
+3. Click **Deploy > Manage Deployments**.
+4. Click the Pencil icon, create a **New version**, and click **Deploy**.
+https://script.google.com/macros/s/AKfycbwNldqib0fL2UXLirWgGVaZjAzjBI3theW3hGti2a0pdnB2_b5dNAKhZZoEGFWbxfD6/exec
