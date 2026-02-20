@@ -253,16 +253,6 @@ body {
     font-weight: 500;
 }
 
-/* Quality Card Additions */
-.quality-card {
-    border: 1px solid rgba(46, 204, 113, 0.3);
-    box-shadow: 0 4px 20px rgba(46, 204, 113, 0.1);
-}
-.quality-card:hover {
-    border-color: rgba(46, 204, 113, 0.6);
-    box-shadow: 0 8px 32px rgba(46, 204, 113, 0.2);
-}
-
 /* Info Card */
 .info-card {
     background: var(--bg-card);

@@ -13,32 +13,21 @@ app.use(express.json());
 app.post('/api/webhook/lead', async (req, res) => {
     console.log('📊 New lead webhook received');
     try {
-        const body = req.body || {};
-
-        // Extract the 4 scores (default to 0 if not present)
-        const score1 = parseFloat(body.Lead_Source_Rule) || 0;
-        const score2 = parseFloat(body.Lead_Age_Scoring_Rule) || 0;
-        const score3 = parseFloat(body.WA_Qual_Score) || parseFloat(body['WA_Qual._Scoring_Rule']) || 0;
-        const score4 = parseFloat(body.Website_Analytics_Rule) || 0;
-
-        // Trigger 'new_lead' event on Apps Script and pass scores
-        // We merged counts & score into one call
-        const updatedData = await googleSheets.updateLeadScore(score1, score2, score3, score4);
-
-        console.log(`✅ Lead count updated: ${updatedData.leads || 'Processed'} | Scores recorded`);
+        const currentData = await googleSheets.getCounts();
+        const updatedData = await googleSheets.updateCounts(currentData.leads + 1, currentData.applications);
+        console.log(`✅ Lead count updated: ${updatedData.leads}`);
         res.json({ success: true, count: updatedData.leads });
     } catch (error) {
-        console.error('Error updating lead count or score:', error);
-        res.status(500).json({ success: false, error: 'Failed to update lead data' });
+        console.error('Error updating lead count:', error);
+        res.status(500).json({ success: false, error: 'Failed to update lead count' });
     }
 });
 
 app.post('/api/webhook/application', async (req, res) => {
     console.log('📝 Application webhook received');
     try {
-        // Trigger 'new_application' event on Apps Script
-        const updatedData = await googleSheets.updateCounts('new_application', 0, 0, 0, 0);
-
+        const currentData = await googleSheets.getCounts();
+        const updatedData = await googleSheets.updateCounts(currentData.leads, currentData.applications + 1);
         console.log(`✅ Application count updated: ${updatedData.applications}`);
         res.json({ success: true, count: updatedData.applications });
     } catch (error) {
@@ -72,7 +61,7 @@ app.get('/api/health', (req, res) => {
 
 app.post('/api/reset', async (req, res) => {
     try {
-        const updatedData = await googleSheets.resetCounts();
+        const updatedData = await googleSheets.updateCounts(0, 0);
         res.json({ success: true, message: 'Counters reset', data: updatedData });
     } catch (error) {
         console.error('Error resetting counters:', error);
