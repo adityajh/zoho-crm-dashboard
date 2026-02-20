@@ -68,6 +68,8 @@ fs.createReadStream('Step1LetsEnterpriseAdmissionsUGMED20251_Report.csv')
 
         // Grab Top 30 for backfill
         const top30 = appsData.slice(0, 30);
+        // REVERSE it: insert oldest first so the newest ones push them down and remain at row 2!
+        top30.reverse();
         console.log('Sending Top 30 recently mapped applications to new tab...');
 
         for (const app of top30) {

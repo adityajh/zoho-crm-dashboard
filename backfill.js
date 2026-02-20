@@ -27,6 +27,18 @@ function formatDateKey(dateInput) {
     return null;
 }
 
+// Helper to format date just for display natively: dd/mm/yy - hh:mm
+function formatDisplayDate(dateInput) {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return String(dateInput);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yy = String(d.getFullYear()).slice(-2);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}/${mm}/${yy} - ${hh}:${min}`;
+}
+
 // 1. Parse Leads
 function parseLeads() {
     return new Promise((resolve) => {
@@ -130,23 +142,23 @@ async function runUnifiedBackfill() {
         await delay(1000);
     } catch (e) { console.error('Error with global counter', e); }
 
-    console.log('Pushing 30 continuous days (Newest first)...');
-    for (const dataPoint of continuous30Days) {
-        try {
-            console.log(`Pushing: ${dataPoint.date} - L:${dataPoint.leads} A:${dataPoint.apps}`);
-            await fetch(SCRIPT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'backfill_daily',
-                    leads: dataPoint.leads,
-                    applications: dataPoint.apps,
-                    date: dataPoint.date
-                })
-            });
-            await delay(1000);
-        } catch (e) { console.error('Error pushing data', e); }
-    }
+    console.log('Pushing 30 continuous days (Newest first)... [SKIPPED - Already Up to Date]');
+    // for (const dataPoint of continuous30Days) {
+    //     try {
+    //         console.log(`Pushing: ${dataPoint.date} - L:${dataPoint.leads} A:${dataPoint.apps}`);
+    //         await fetch(SCRIPT_URL, {
+    //             method: 'POST',
+    //             headers: { 'Content-Type': 'application/json' },
+    //             body: JSON.stringify({
+    //                 type: 'backfill_daily',
+    //                 leads: dataPoint.leads,
+    //                 applications: dataPoint.apps,
+    //                 date: dataPoint.date 
+    //             })
+    //         });
+    //         await delay(1000);
+    //     } catch (e) { console.error('Error pushing data', e); }
+    // }
 
     console.log('Pushing Top 30 Lead Scores...');
     for (const lead of top30Scores) {
@@ -156,7 +168,7 @@ async function runUnifiedBackfill() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: 'backfill_score',
-                    date: lead.date.toISOString(),
+                    date: formatDisplayDate(lead.date),
                     leadName: lead.name,
                     leadId: lead.id,
                     city: lead.city,
