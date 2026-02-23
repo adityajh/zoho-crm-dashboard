@@ -5,7 +5,7 @@ require('dotenv').config();
 // The Google Apps Script URL (Webhook)
 const SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL_V1_2 || 'https://script.google.com/macros/s/AKfycbwNldqib0fL2UXLirWgGVaZjAzjBI3theW3hGti2a0pdnB2_b5dNAKhZZoEGFWbxfD6/exec';
 
-const leadsFile = 'Leads_2026_02_20.csv';
+const leadsFile = 'Leads_2026_02_23.csv';
 const appsFile = 'Step1LetsEnterpriseAdmissionsUGMED20251_Report.csv';
 
 // Storage mapping
@@ -142,23 +142,23 @@ async function runUnifiedBackfill() {
         await delay(1000);
     } catch (e) { console.error('Error with global counter', e); }
 
-    console.log('Pushing 30 continuous days (Newest first)... [SKIPPED - Already Up to Date]');
-    // for (const dataPoint of continuous30Days) {
-    //     try {
-    //         console.log(`Pushing: ${dataPoint.date} - L:${dataPoint.leads} A:${dataPoint.apps}`);
-    //         await fetch(SCRIPT_URL, {
-    //             method: 'POST',
-    //             headers: { 'Content-Type': 'application/json' },
-    //             body: JSON.stringify({
-    //                 type: 'backfill_daily',
-    //                 leads: dataPoint.leads,
-    //                 applications: dataPoint.apps,
-    //                 date: dataPoint.date 
-    //             })
-    //         });
-    //         await delay(1000);
-    //     } catch (e) { console.error('Error pushing data', e); }
-    // }
+    console.log('Pushing 30 continuous days (Newest first)...');
+    for (const dataPoint of continuous30Days) {
+        try {
+            console.log(`Pushing: ${dataPoint.date} - L:${dataPoint.leads} A:${dataPoint.apps}`);
+            await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'backfill_daily',
+                    leads: dataPoint.leads,
+                    applications: dataPoint.apps,
+                    date: dataPoint.date
+                })
+            });
+            await delay(1000);
+        } catch (e) { console.error('Error pushing data', e); }
+    }
 
     console.log('Pushing Top 30 Lead Scores...');
     for (const lead of top30Scores) {
