@@ -20,11 +20,11 @@ app.post('/api/webhook/lead', async (req, res) => {
         const leadId = body.id || body.Record_Id || body.Lead_Id || 'N/A';
         const city = body.City || 'Unknown';
 
-        // Extract the 4 scores (default to 0 if not present)
-        const score1 = parseFloat(body.Lead_Source_Rule) || 0;
-        const score2 = parseFloat(body.Lead_Age_Scoring_Rule) || 0;
-        const score3 = parseFloat(body.WA_Qual_Score) || parseFloat(body['WA_Qual._Scoring_Rule']) || 0;
-        const score4 = parseFloat(body.Website_Analytics_Rule) || 0;
+        // Extract the 4 scores — try multiple possible field name formats from Zoho
+        const score1 = parseFloat(body.Lead_Source_Score) || parseFloat(body.Lead_Source_Rule) || 0;
+        const score2 = parseFloat(body.Lead_Age_Score) || parseFloat(body.Lead_Age_Scoring_Rule) || 0;
+        const score3 = parseFloat(body.WA_Qualification_Score) || parseFloat(body.WA_Qual_Score) || parseFloat(body['WA_Qual._Scoring_Rule']) || 0;
+        const score4 = parseFloat(body.Website_Analytics_Score) || parseFloat(body.Website_Analytics_Rule) || 0;
 
         // Trigger 'new_lead' event on Apps Script and pass scores
         // We merged counts & score into one call
