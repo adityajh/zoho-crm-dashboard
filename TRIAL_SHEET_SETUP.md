@@ -238,7 +238,7 @@ function doPost(e) {
     // 3. BACKFILL COMMANDS (For our node script)
     if (params.type === 'backfill_global') {
         const counterSheet = ss.getSheetByName('TotalCounters');
-        counterSheet.getRange('A2:C2').setValues([[params.leads, params.applications, timestamp]]);
+        counterSheet.getRange('A2:C2').setValues([[params.leads, params.applications, isoTimestamp]]);
     }
     
     if (params.type === 'backfill_daily') {
