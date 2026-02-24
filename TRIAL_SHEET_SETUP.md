@@ -131,41 +131,32 @@ function doPost(e) {
 
     const updateDailyCounter = (isLead) => {
         const dailySheet = ss.getSheetByName('DailyTotals');
-        const data = dailySheet.getDataRange().getValues();
-        let updated = false;
+        const lastRow = dailySheet.getLastRow();
         
-        // Search through the rows to see if today's date exists anywhere
-        if (data.length > 1) {
-            for (let i = 1; i < data.length; i++) {
-                if (data[i][0]) {
-                    // Properly format the cell date ignoring UTC shift
-                    let rowDateStr = "";
-                    if (data[i][0] instanceof Date) {
-                        rowDateStr = Utilities.formatDate(data[i][0], ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
-                    } else {
-                        rowDateStr = String(data[i][0]).split('T')[0];
-                    }
-                    
-                    if (rowDateStr === today) {
-                        // Found the row! Update it in place (i+1 because Apps Script ranges are 1-indexed)
-                        let currentLeads = parseInt(data[i][1]) || 0;
-                        let currentApps = parseInt(data[i][2]) || 0;
-                        if(isLead) dailySheet.getRange(i + 1, 2).setValue(currentLeads + 1);
-                        else dailySheet.getRange(i + 1, 3).setValue(currentApps + 1);
-                        updated = true;
-                        break;
-                    }
-                }
+        if (lastRow >= 2) {
+            const row2Val = dailySheet.getRange('A2').getValue();
+            // Normalize: if Date object, format with timezone. If string, take as-is.
+            let row2Date = '';
+            if (row2Val instanceof Date) {
+                row2Date = Utilities.formatDate(row2Val, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+            } else {
+                row2Date = String(row2Val).substring(0, 10); // "2026-02-24" from any format
+            }
+            
+            if (row2Date === today) {
+                // Row 2 IS today — increment in place
+                const currentLeads = parseInt(dailySheet.getRange('B2').getValue()) || 0;
+                const currentApps = parseInt(dailySheet.getRange('C2').getValue()) || 0;
+                if (isLead) dailySheet.getRange('B2').setValue(currentLeads + 1);
+                else dailySheet.getRange('C2').setValue(currentApps + 1);
+                return;
             }
         }
         
-        // If the date doesn't exist at all, THEN insert a new row 2
-        if (!updated) {
-            dailySheet.insertRowBefore(2);
-            dailySheet.getRange('A2:C2').setValues([[today, isLead ? 1 : 0, isLead ? 0 : 1]]);
-            // Trim old days (keep 60 rows for buffer)
-            if(dailySheet.getMaxRows() > 61) dailySheet.deleteRow(62);
-        }
+        // Row 2 is NOT today (or sheet is empty) — insert new row
+        dailySheet.insertRowBefore(2);
+        dailySheet.getRange('A2:C2').setValues([[today, isLead ? 1 : 0, isLead ? 0 : 1]]);
+        if (dailySheet.getMaxRows() > 61) dailySheet.deleteRow(62);
     };
 
     const insertApplicationRecord = (p, timeStr) => {
