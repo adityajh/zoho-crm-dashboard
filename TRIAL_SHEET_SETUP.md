@@ -98,6 +98,9 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  // Prevent race conditions from concurrent Zoho webhooks
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000); // Wait up to 30 seconds
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const params = JSON.parse(e.postData.contents);
@@ -261,7 +264,7 @@ function doPost(e) {
     
     if (params.type === 'reset') {
          const counterSheet = ss.getSheetByName('TotalCounters');
-         counterSheet.getRange('A2:C2').setValues([[0, 0, timestamp]]);
+         counterSheet.getRange('A2:C2').setValues([[0, 0, isoTimestamp]]);
          return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -269,6 +272,8 @@ function doPost(e) {
     
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() })).setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
   }
 }
 ```
