@@ -31,9 +31,9 @@ In your `Zoho CRM Dashboard Data v1.2 Trial` Sheet, ensure you have these **four
 *(Used for Average Lead Score. Newest leads will be at the top!)*
 
 ### `Applications` Tab Headers (Row 1):
-| A | B | C | D | E | F | G | H | I | J | K | L | M |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Date | Name | Email | Mobile | City | School | Stream | 10th % | 12th Status | Source | Referrer | Extracurriculars | Char Count |
+| A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Date | Name | Email | Mobile | City | School | Stream | 10th % | 12th Status | Source | Referrer | Extracurriculars | 3 Things Enjoy | 1 Thing Created | Why This Path | 5 Years From Now | Whats Your Why | Char Count |
 
 *(Used for Application tracking. Appends new apps to the top natively!)*
 
@@ -101,7 +101,7 @@ function doPost(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const params = JSON.parse(e.postData.contents);
-    const today = params.overrideDate || new Date().toISOString().split('T')[0];
+    const today = params.overrideDate || Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
     
     // ISO timestamp for TotalCounters (needed by frontend to calculate "X minutes ago")
     const isoTimestamp = new Date().toISOString();
@@ -170,7 +170,7 @@ function doPost(e) {
         if (!appSheet) return;
         
         appSheet.insertRowBefore(2);
-        appSheet.getRange('A2:M2').setValues([[
+        appSheet.getRange('A2:R2').setValues([[
             timeStr,
             p.appName || '',
             p.email || '',
@@ -183,6 +183,11 @@ function doPost(e) {
             p.source || '',
             p.referrer || '',
             p.extracurriculars || '',
+            p.essay1 || '',
+            p.essay2 || '',
+            p.essay3 || '',
+            p.essay4 || '',
+            p.essay5 || '',
             p.charCount || 0
         ]]);
         

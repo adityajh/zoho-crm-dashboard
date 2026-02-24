@@ -7,6 +7,7 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Zoho sends Form-Data
 
 // --- Webhook Endpoints ---
 
@@ -42,43 +43,40 @@ app.post('/api/webhook/application', async (req, res) => {
     console.log('📝 Application webhook received');
     try {
         const body = req.body || {};
-        console.log('Mapping Application Payload onto New Tab:', body.id);
+        console.log('Application body keys:', Object.keys(body));
 
-        let charCount = 0;
-        // Search keys logically or via substring matching to parse essay lengths from webhook body 
-        Object.keys(body).forEach(key => {
-            const kl = key.toLowerCase();
-            if (
-                kl.includes('enjoy the most') ||
-                kl.includes('contributed to') ||
-                kl.includes('innovative path') ||
-                kl.includes('5 years from now') ||
-                kl.includes('choosing ug-med')
-            ) {
-                charCount += String(body[key] || '').length;
-            }
-        });
+        // 5 essay fields — used for character count calculation
+        const essay1 = String(body['3 things you enjoy'] || body['3_things_you_enjoy'] || '');
+        const essay2 = String(body['1 thing you created'] || body['1_thing_you_created'] || '');
+        const essay3 = String(body['Why this path'] || body['Why_this_path'] || '');
+        const essay4 = String(body['5 years from now'] || body['5_years_from_now'] || '');
+        const essay5 = String(body['Whats your why'] || body['Whats_your_why'] || '');
+        const charCount = essay1.length + essay2.length + essay3.length + essay4.length + essay5.length;
 
-        // Check for Zoho's standard param keys and map to our 13-column tab
+        // Map to our 18-column Applications tab
         const params = {
-            appName: body.Name || body.Full_Name || (body.First_Name ? `${body.First_Name} ${body.Last_Name}` : body.Last_Name) || 'Unknown',
-            email: body.Email || body.Email_ID || '',
-            mobile: body.Mobile_Number || body.Mobile || body.Phone || '',
-            city: body.Your_city_of_residence || body.City || '',
-            school: body.School_Name || body.School || '',
+            appName: body.Name || 'Unknown',
+            email: body.Email || '',
+            mobile: body.Mobile || '',
+            city: body.City || '',
+            school: body.School || '',
             stream: body.Stream || '',
-            tenth: body['10th_Grade_%'] || body['10th_Grade'] || '',
-            twelfth: body['12th_Grade_Status'] || body['12th_Grade'] || '',
-            source: body['How_did_you_come_to_know_about_us?'] || body.Lead_Source || '',
-            referrer: body['Referral_Name_(if_any)'] || body.Referral_Name || body.Referrer || '',
-            extracurriculars: body['Extra-Curricular_Activities'] || body.Extra_Curricular_Activities || '',
+            tenth: body['10th_Grade'] || '',
+            twelfth: body['12th_Grade'] || '',
+            source: body.Lead_Source || '',
+            referrer: body.Referrer || '',
+            extracurriculars: body.Extra_Curricular_Activities || '',
+            essay1: essay1,
+            essay2: essay2,
+            essay3: essay3,
+            essay4: essay4,
+            essay5: essay5,
             charCount: charCount
         };
 
-        // Trigger 'new_application' event on Apps Script and pass mapped Application Data
         const updatedData = await googleSheets.updateApplicationCounts(params);
 
-        console.log(`✅ Application count updated internally: ${updatedData.apps}`);
+        console.log(`✅ Application count updated: ${updatedData.apps} | Char count: ${charCount}`);
         res.json({ success: true, count: updatedData.apps });
     } catch (error) {
         console.error('Error updating application count:', error);
