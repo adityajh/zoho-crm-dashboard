@@ -129,35 +129,8 @@ function doPost(e) {
         return { leads, apps };
     };
 
-    const updateDailyCounter = (isLead) => {
-        const dailySheet = ss.getSheetByName('DailyTotals');
-        const lastRow = dailySheet.getLastRow();
-        
-        if (lastRow >= 2) {
-            const row2Val = dailySheet.getRange('A2').getValue();
-            // Normalize: if Date object, format with timezone. If string, take as-is.
-            let row2Date = '';
-            if (row2Val instanceof Date) {
-                row2Date = Utilities.formatDate(row2Val, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd');
-            } else {
-                row2Date = String(row2Val).substring(0, 10); // "2026-02-24" from any format
-            }
-            
-            if (row2Date === today) {
-                // Row 2 IS today — increment in place
-                const currentLeads = parseInt(dailySheet.getRange('B2').getValue()) || 0;
-                const currentApps = parseInt(dailySheet.getRange('C2').getValue()) || 0;
-                if (isLead) dailySheet.getRange('B2').setValue(currentLeads + 1);
-                else dailySheet.getRange('C2').setValue(currentApps + 1);
-                return;
-            }
-        }
-        
-        // Row 2 is NOT today (or sheet is empty) — insert new row
-        dailySheet.insertRowBefore(2);
-        dailySheet.getRange('A2:C2').setValues([[today, isLead ? 1 : 0, isLead ? 0 : 1]]);
-        if (dailySheet.getMaxRows() > 61) dailySheet.deleteRow(62);
-    };
+    // updateDailyCounter removed — DailyTotals is now updated by a midnight cron function
+
 
     const insertApplicationRecord = (p, timeStr) => {
         const appSheet = ss.getSheetByName('Applications');
@@ -196,7 +169,6 @@ function doPost(e) {
     // 1. LIVE LEAD WEBHOOK
     if (params.type === 'new_lead') {
         const counts = updateGlobalCounter(true);
-        updateDailyCounter(true);
         
         const scoreSheet = ss.getSheetByName('LeadScores');
         scoreSheet.insertRowBefore(2); // Push down logic
@@ -221,16 +193,13 @@ function doPost(e) {
     // 2. LIVE APPLICATION WEBHOOK
     if (params.type === 'new_application') {
         const counts = updateGlobalCounter(false);
-        updateDailyCounter(false);
         insertApplicationRecord(params, displayTimestamp);
         return ContentService.createTextOutput(JSON.stringify({ success: true, count: counts.apps })).setMimeType(ContentService.MimeType.JSON);
     }
     
     // BACKFILL APPLICATION COMMAND
     if (params.type === 'backfill_application') {
-        // This acts exactly like new_application but targets a specific historical date
-        if (params.overrideDate) updateDailyCounter(false); // Only tick counter if date mapping is requested during mass backfill
-        insertApplicationRecord(params, params.overrideTimestamp || timestamp);
+        insertApplicationRecord(params, params.overrideTimestamp || displayTimestamp);
         return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -267,8 +236,64 @@ function doPost(e) {
     lock.releaseLock();
   }
 }
+
+// --- MIDNIGHT CRON: Update DailyTotals ---
+// Set up a daily trigger: Triggers > Add Trigger > updateDailyTotalsAtMidnight > Time-driven > Day timer > Midnight to 1am
+function updateDailyTotalsAtMidnight() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const today = Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  
+  // Count leads for today from LeadScores tab
+  const scoreSheet = ss.getSheetByName('LeadScores');
+  const scoreData = scoreSheet.getDataRange().getValues();
+  let leadCount = 0;
+  for (let i = 1; i < scoreData.length; i++) {
+    const cellDate = scoreData[i][0]; // Column A = date string like "24/02/26 - 10:33"
+    const dateStr = String(cellDate);
+    // Parse "dd/mm/yy - hh:mm" format to compare with today
+    const parts = dateStr.split(' - ')[0].split('/');
+    if (parts.length === 3) {
+      const rowDate = '20' + parts[2] + '-' + parts[1] + '-' + parts[0]; // "2026-02-24"
+      if (rowDate === today) leadCount++;
+    }
+  }
+  
+  // Count applications for today from Applications tab
+  const appSheet = ss.getSheetByName('Applications');
+  const appData = appSheet.getDataRange().getValues();
+  let appCount = 0;
+  for (let i = 1; i < appData.length; i++) {
+    const cellDate = appData[i][0];
+    const dateStr = String(cellDate);
+    const parts = dateStr.split(' - ')[0].split('/');
+    if (parts.length === 3) {
+      const rowDate = '20' + parts[2] + '-' + parts[1] + '-' + parts[0];
+      if (rowDate === today) appCount++;
+    }
+  }
+  
+  // Insert one row at top of DailyTotals
+  const dailySheet = ss.getSheetByName('DailyTotals');
+  dailySheet.insertRowBefore(2);
+  dailySheet.getRange('A2:C2').setValues([[today, leadCount, appCount]]);
+  
+  // Trim old rows (keep 60 days max)
+  if (dailySheet.getMaxRows() > 61) dailySheet.deleteRow(62);
+}
 ```
 
 3. Click **Deploy > Manage Deployments**.
 4. Click the Pencil icon, create a **New version**, and click **Deploy**.
+
+### Step 3: Set up the Midnight Trigger
+1. In Apps Script editor, click **Triggers** (clock icon in left sidebar)
+2. Click **+ Add Trigger**
+3. Configure:
+   - Function: `updateDailyTotalsAtMidnight`
+   - Deployment: `Head`
+   - Event source: `Time-driven`
+   - Type: `Day timer`
+   - Time: `Midnight to 1am`
+4. Click **Save**
+
 https://script.google.com/macros/s/AKfycbwNldqib0fL2UXLirWgGVaZjAzjBI3theW3hGti2a0pdnB2_b5dNAKhZZoEGFWbxfD6/exec
