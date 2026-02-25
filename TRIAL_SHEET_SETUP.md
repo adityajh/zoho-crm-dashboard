@@ -241,9 +241,12 @@ function doPost(e) {
 // Set up a daily trigger: Triggers > Add Trigger > updateDailyTotalsAtMidnight > Time-driven > Day timer > Midnight to 1am
 function updateDailyTotalsAtMidnight() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const today = Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  // The trigger runs between Midnight and 1 AM, so we need to calculate totals for *yesterday*
+  const dateObj = new Date();
+  dateObj.setDate(dateObj.getDate() - 1);
+  const targetDate = Utilities.formatDate(dateObj, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd');
   
-  // Count leads for today from LeadScores tab
+  // Count leads for yesterday from LeadScores tab
   const scoreSheet = ss.getSheetByName('LeadScores');
   const scoreData = scoreSheet.getDataRange().getValues();
   let leadCount = 0;
@@ -254,11 +257,11 @@ function updateDailyTotalsAtMidnight() {
     const parts = dateStr.split(' - ')[0].split('/');
     if (parts.length === 3) {
       const rowDate = '20' + parts[2] + '-' + parts[1] + '-' + parts[0]; // "2026-02-24"
-      if (rowDate === today) leadCount++;
+      if (rowDate === targetDate) leadCount++;
     }
   }
   
-  // Count applications for today from Applications tab
+  // Count applications for yesterday from Applications tab
   const appSheet = ss.getSheetByName('Applications');
   const appData = appSheet.getDataRange().getValues();
   let appCount = 0;
@@ -268,14 +271,14 @@ function updateDailyTotalsAtMidnight() {
     const parts = dateStr.split(' - ')[0].split('/');
     if (parts.length === 3) {
       const rowDate = '20' + parts[2] + '-' + parts[1] + '-' + parts[0];
-      if (rowDate === today) appCount++;
+      if (rowDate === targetDate) appCount++;
     }
   }
   
   // Insert one row at top of DailyTotals
   const dailySheet = ss.getSheetByName('DailyTotals');
   dailySheet.insertRowBefore(2);
-  dailySheet.getRange('A2:C2').setValues([[today, leadCount, appCount]]);
+  dailySheet.getRange('A2:C2').setValues([[targetDate, leadCount, appCount]]);
   
   // Trim old rows (keep 60 days max)
   if (dailySheet.getMaxRows() > 61) dailySheet.deleteRow(62);
