@@ -211,15 +211,14 @@ function doPost(e) {
     
     if (params.type === 'backfill_daily') {
         const dailySheet = ss.getSheetByName('DailyTotals');
-        dailySheet.appendRow([params.date, params.leads, params.applications]); 
-        // Note: For backfills via script, we want to append them chronologically ascending, 
-        // to manually control order, or we can insert top. We'll handle this in the JS script properly.
+        dailySheet.insertRowBefore(2);
+        dailySheet.getRange('A2:C2').setValues([[params.date, params.leads, params.applications]]);
     }
     
     if (params.type === 'backfill_score') {
          const scoreSheet = ss.getSheetByName('LeadScores');
-         // We'll append for backfill to keep control over order. JS script will handle it.
-         scoreSheet.appendRow([params.date, params.leadName || '', params.leadId || '', params.city || '', params.score1, params.score2, params.score3, params.score4]);
+         scoreSheet.insertRowBefore(2);
+         scoreSheet.getRange('A2:H2').setValues([[params.date, params.leadName || '', params.leadId || '', params.city || '', params.score1, params.score2, params.score3, params.score4]]);
     }
     
     if (params.type === 'reset') {
